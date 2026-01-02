@@ -1,0 +1,240 @@
+\documentclass[a4paper,11pt,notitlepage]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{enumerate}
+\usepackage{graphicx}
+\usepackage[vmargin=2.6cm,hmargin=2.9cm]{geometry}
+\usepackage{indentfirst}
+\usepackage{cite}
+\usepackage[frenchb,french]{babel}
+\usepackage{eurosym}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{textcomp}
+
+\usepackage{pslatex}
+
+\floatname{algorithm}{Algorithme}
+\renewcommand{\algorithmicrequire}{\textbf{Entrï¿½e:}}
+\renewcommand{\algorithmicensure}{\textbf{Sortie:}}
+\renewcommand{\algorithmicif}{\textbf{si}}
+\renewcommand{\algorithmicthen}{\textbf{alors}}
+\renewcommand{\algorithmicelse}{\textbf{sinon}}
+\renewcommand{\algorithmicfor}{\textbf{pour}}
+\renewcommand{\algorithmicend}{\textbf{fin}}
+\renewcommand{\algorithmicdo}{\textbf{faire}}
+
+
+\pagestyle{myheadings}
+
+\newcommand{\STitre}{UNIVERSIT\'E DE MONS}
+\newcommand{\FTitre}{FACULT\'E DES SCIENCES}
+\newcommand{\Titre}{Améliorer les prédictions d'un réseau de neurones sur base d'explications a priori}
+
+
+\renewcommand{\O}{\mathcal{O}}
+\newtheorem{thm}{Théorème}
+\newtheorem{cor}{Corollaire}
+\newtheorem{conj}{Conjecture}
+\newtheorem{lem}{Lemme}
+\newtheorem{prop}{Proposition}
+\newtheorem{exa}{Exemple}
+\newtheorem{rem}{Remarque}
+\theoremstyle{definition}
+\newtheorem{defn}{Définition}
+
+
+\newenvironment{compar}{
+\begin{center}
+\begin{quote}
+\sf \small \begin{tabular}{p{0.4\textwidth} | p{0.4\textwidth}}
+}{
+\end{tabular}
+\end{quote}
+\end{center}
+\rm \normalsize
+}
+
+
+\def\signed #1{{\leavevmode\unskip\nobreak\hfil\penalty50\hskip2em
+  \hbox{}\nobreak\hfil(#1)%
+  \parfillskip=0pt \finalhyphendemerits=0 \endgraf}}
+
+\newsavebox\mybox
+\newenvironment{aquote}[1]
+  {\savebox\mybox{#1}\begin{quote}}
+  {\signed{\usebox\mybox}\end{quote}}
+  
+
+%\title{\LARGE\bf \Titre}
+
+
+\title{
+  \begin{minipage}\linewidth\centering 
+  \LARGE\bf\STitre
+  \vskip20pt 
+  \Large\bf\FTitre
+  \vskip20pt 
+  \Huge \Titre    
+  \end{minipage}
+}
+
+\author{Nicolas Melaerts\\[1.5ex]
+Master en Sciences Informatiques\\[1.5ex]
+{\tt \small nicolas.melaerts@student.umons.ac.be}
+}
+\date{Année académique 2025-2026}
+\begin{document}
+
+
+\maketitle
+\smallskip
+
+
+
+\markright{\Titre}
+
+
+\thispagestyle{empty}
+
+\bigskip
+
+%\renewcommand{\contentsname}{Contenu}
+
+\vfill
+
+\begin{quote}
+{Mémoire effectué dans le cadre du {\bf Master en Sciences Informatiques, finalité spécialisée.}  \\ } 
+
+\end{quote}
+\begin{quote}
+{\centering \bf Directeur : } Pierre VANDENHOVE \\
+{\centering \bf Co-directeur : } Stéphane DUPONT
+\end{quote}
+
+\vfill
+
+\includegraphics[width=0.2\textwidth]{img/FS.pdf} \hspace{0.6\textwidth} \includegraphics[width=0.2\textwidth]{img/logo_UMONS.pdf} \hspace{0.2\textwidth} 
+
+\newpage
+L'auteur, Nicolas Melaerts, atteste avoir respecté les règles éthiques en vigueur, y compris la charte de l'Université relative à l'utilisation de l'Intelligence Artificielle. 
+
+cfr. Réglement de l'université ...
+
+\newpage
+
+\section*{Remerciements} \label{sec_rem}
+
+blablabla
+
+\newpage
+\tableofcontents
+\normalsize
+\newpage
+
+ 
+
+\setlength{\parindent}{12pt}
+\setlength{\parskip}{1ex plus 0.5ex minus 0.2ex}
+
+\addcontentsline{toc}{chapter}{Introduction}
+
+\section*{Introduction} \label{sec_intro}
+
+Ce travail repose sur l'article~\cite{Silverman:1987} qui 
+concerne un algorithme de factorisation, problème fondamental dans le cadre du chiffrement RSA ... 
+
+
+Les différentes parties de ce travail sont abordées dans les chapitres  \ref{ch_prem} ï¿½ \ref{ch_fin}. 
+
+\input{dataset}
+
+\chapter{Premier chapitre} \label{ch_prem}
+
+Ce chapitre devrait bien entendu porter un nom plus approprié ... 
+
+Je vais profiter également de ce chapitre pour mentionner quelques références concernant \LaTeX\ ~\cite{latexweb}, notamment 
+une bonne introduction qu'est le document \emph{The not so short introduction to \LaTeX $2\epsilon$}~\cite{notShort} régulièrement mis à jour.
+Une traduction française est également disponible~\cite{notshortFR}. Pour une documentation très complète, 
+le livre \emph{The LaTeX Companion}~\cite{Mittelbach04} est une référence reconnue. 
+
+Certains logiciels permettent d'ï¿½diter un texte avec \LaTeX\ dans un environnement similaire ï¿½ un ï¿½diteur \emph{WYSIWYG}, 
+comme \emph{Lyx}~\cite{lyx}.
+
+
+\section{Première section} \label{sec_un}
+
+Un
+
+\subsection{Première sous-section} \label{sec_sous_un}
+
+Eh oui, on a aussi droit à des sous-sections ... 
+
+\subsection{Deuxième sous-section} \label{sec_sous_deux}
+
+
+\section{Deuxième section} \label{sec_deux}
+
+Deux
+
+\section{Troisième section} \label{sec_trois}
+
+Trois
+
+\chapter{Deuxième chapitre} \label{ch_deux}
+
+Un guide de rédaction scientifique en informatique est disponible sous la forme de deux documents sur moodle 
+\footnote{franï¿½ais : {\tt https://moodle.umons.ac.be/mod/resource/view.php?id=199575} \\
+anglais : {\tt https://orbi.umons.ac.be/handle/20.500.12907/8103}}
+(une version en franï¿½ais 
+et une version adaptï¿½e en anglais). 
+C'est de ces documents que sont extraites les informations concernant \LaTeX\ du chapitre \ref{ch_prem}.
+C'est également ces documents qui ont servi de point de départ pour ce canevas, certains packages  \LaTeX\  
+pouvant d'abord sembler superflus. Qui peut le plus peut le moins ... 
+
+\chapter{Troisième chapitre} \label{ch_fin}
+
+Trois
+
+\chapter{Conclusion} \label{ch_ccls}
+
+Conclusion, remerciements si pas déjà plus haut ... 
+
+
+\addcontentsline{toc}{chapter}{Bibliographie}
+\bibliographystyle{acm}
+\bibliography{memoire}
+
+\newpage
+
+\appendix
+
+\addcontentsline{toc}{chapter}{Annexe A: Ce que je ne veux pas mettre dans la partie principale du document}
+\section*{Annexe A: Ce que je ne veux pas mettre dans la partie principale du document}
+
+Parce que c'est trop technique ... 
+
+
+\addcontentsline{toc}{chapter}{Annexe B: Une autre pour la route}
+\section*{Annexe B: Une autre pour la route}
+
+Pour faire joli ... 
+
+
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+

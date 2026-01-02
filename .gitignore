@@ -1,0 +1,20 @@
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+.DS_Store
+
+# Editor temporary files
+.vscode/
+*.swp
+*~
+
+# Generated Datasets
+dataset_creator/generated_dataset/
+generated_dataset/

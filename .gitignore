@@ -9,6 +9,8 @@
 *.bbl
 *.blg
 .DS_Store
+.bib
+
 
 # Editor temporary files
 .vscode/

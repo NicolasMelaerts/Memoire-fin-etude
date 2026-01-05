@@ -14,6 +14,7 @@
 
 ## 📝 Tâches
 - [ ] **Littérature** : Chercher de la littérature sur le sujet (voir s'il existe des choses proches).
-- [ ] **Dataset** : Réfléchir à/implémenter le dataset (similaire à Amar pour commencer, pas besoin de beaucoup d'images).
+- [x] **Dataset** : Réfléchir à/implémenter le dataset (similaire à Amar pour commencer, pas besoin de beaucoup d'images).
 - [ ] **GradCAM** : Réfléchir à comment faire de la backpropagation sur base de GradCAM (redérivation des couches ?).
-- [ ] **Outils** : Mettre en place un Overleaf.
+- [x] **Outils** : Mettre en place un Overleaf. 
+J'ai mis en place un github avec mes documents latex et pdf ainsi que le code que j'ai produit pour tous centralisé au même endroit. Notament pour dans le futur si je dois avoir du code inclus dans mon .tex c'est plus simple de tous avoir centralisé au même endroit.

@@ -1,205 +1,254 @@
+"""
+dataset_generator.py — Génère un dataset synthétique Inside/Outside
+
+Classes :
+  - Positive : Triangle DANS un cercle (heatmap générée)
+  - Negative : 6 types différents (cercle seul, triangle dehors, etc.)
+
+Usage :
+    python dataset_generator.py
+
+Configuration :
+    Modifiez config.py pour ajuster le nombre d'images, tailles, ratios, etc.
+"""
 import numpy as np
 from PIL import Image, ImageDraw
 import os
 import random
-import math
 import json
 import csv
 from config import Config
+from shape_generators import ShapeGenerator
+from heatmap_generator import HeatmapGenerator
+from sample_generators import SampleGenerator
 
-class GeometryUtils:
-    @staticmethod
-    def is_point_in_circle(point, circle_center, circle_radius):
-        """Check if a point (x, y) is inside a circle."""
-        dist = math.hypot(point[0] - circle_center[0], point[1] - circle_center[1])
-        return dist <= circle_radius
-
-    @staticmethod
-    def is_triangle_in_circle(triangle_points, circle_center, circle_radius):
-        """Check if a triangle is completely inside a circle."""
-        for point in triangle_points:
-            if not GeometryUtils.is_point_in_circle(point, circle_center, circle_radius):
-                return False
-        return True
-
-    @staticmethod
-    def is_triangle_outside_circle(triangle_points, circle_center, circle_radius):
-        """
-        Check if a triangle is completely outside a circle.
-        1. All vertices must be outside.
-        2. No edge should intersect the circle.
-        """
-        # 1. Check vertices
-        for point in triangle_points:
-            if GeometryUtils.is_point_in_circle(point, circle_center, circle_radius):
-                return False
-        
-        # 2. Check overlap with edges
-        for i in range(3):
-            p1 = triangle_points[i]
-            p2 = triangle_points[(i + 1) % 3]
-            if GeometryUtils.circle_intersects_segment(circle_center, circle_radius, p1, p2):
-                return False
-                
-        return True
-
-    @staticmethod
-    def circle_intersects_segment(center, radius, p1, p2):
-        """Check if a circle intersects with a line segment p1-p2."""
-        dx, dy = p2[0] - p1[0], p2[1] - p1[1]
-        if dx == 0 and dy == 0:
-            return False
-
-        t = ((center[0] - p1[0]) * dx + (center[1] - p1[1]) * dy) / (dx*dx + dy*dy)
-        t = max(0, min(1, t))
-        closest_x = p1[0] + t * dx
-        closest_y = p1[1] + t * dy
-        
-        dist = math.hypot(center[0] - closest_x, center[1] - closest_y)
-        return dist <= radius
 
 class DatasetGenerator:
+    """Orchestrateur principal pour la génération du dataset."""
+
     def __init__(self, config):
         self.config = config
         self.images_dir = os.path.join(config.OUTPUT_DIR, 'images')
-        
+        self.heatmaps_dir = os.path.join(config.OUTPUT_DIR, 'heatmaps')
+
+        # Create output directories
         if not os.path.exists(self.images_dir):
             os.makedirs(self.images_dir)
+        if not os.path.exists(self.heatmaps_dir):
+            os.makedirs(self.heatmaps_dir)
 
-    def generate_random_circle(self, img_w, img_h):
-        # Radius
-        radius = random.randint(self.config.MIN_CIRCLE_RADIUS, self.config.MAX_CIRCLE_RADIUS)
-        # Center (ensure fully within bounds if possible, but minimal overlap is fine too)
-        # To avoid clipping, keep center at least radius away from edges.
-        x = random.randint(radius, img_w - radius)
-        y = random.randint(radius, img_h - radius)
-        return (x, y), radius
+        # Initialize generators
+        self.shape_gen = ShapeGenerator(config)
+        self.heatmap_gen = HeatmapGenerator(config)
+        self.sample_gen = SampleGenerator(config, self.shape_gen, self.heatmap_gen)
 
-    def generate_random_triangle(self, img_w, img_h):
-        center_x = random.randint(0, img_w)
-        center_y = random.randint(0, img_h)
-        
-        side_length = random.randint(self.config.MIN_TRIANGLE_SIDE, self.config.MAX_TRIANGLE_SIDE)
-        # Distance from centroid to vertex for equilateral triangle
-        dist = side_length / math.sqrt(3)
-        
-        angle_offset = random.uniform(0, 2 * math.pi)
-        points = []
-        for i in range(3):
-            angle = angle_offset + i * (2 * math.pi / 3)
-            pt_x = int(center_x + dist * math.cos(angle))
-            pt_y = int(center_y + dist * math.sin(angle))
-            # Clip
-            pt_x = max(0, min(img_w - 1, pt_x))
-            pt_y = max(0, min(img_h - 1, pt_y))
-            points.append((pt_x, pt_y))
-        return points
+    def generate_sample(self, sample_id, case_type, force_arrow):
+        """
+        Génère un échantillon (image + heatmap si positif).
 
-    def generate_sample(self, sample_id, label):
+        Args:
+            sample_id: identifiant unique de l'échantillon
+            case_type: type d'échantillon à générer
+            force_arrow: True pour forcer l'ajout d'une flèche
+
+        Returns:
+            (filename, label, has_arrow) ou (None, None, False) en cas d'échec
+        """
         w, h = self.config.IMAGE_SIZE
-        attempts = 0
-        max_attempts = 1000
-        
-        while attempts < max_attempts:
-            # Create white image
-            img = Image.new('L', (w, h), 255) # 'L' = 8-bit pixels, black and white
-            draw = ImageDraw.Draw(img)
-            
-            # 1. Generate Circle
-            circle_center, circle_radius = self.generate_random_circle(w, h)
-            
-            # 2. Generate Triangle candidates
-            triangle_points = self.generate_random_triangle(w, h)
-            
-            if label == 'inside':
-                # Rejection sampling for 'inside' is hard if random.
-                # Heuristic: generate triangle INSIDE circle directly.
-                if not GeometryUtils.is_triangle_in_circle(triangle_points, circle_center, circle_radius):
-                     # Try to force generation inside
-                    # For equilateral, we need to be careful.
-                    # Generate center inside circle with margin
-                    margin = (self.config.MAX_TRIANGLE_SIDE / math.sqrt(3)) + 2
-                    if circle_radius > margin:
-                         # Generate random center within allowed radius
-                        max_dist = circle_radius - margin
-                        rx = random.uniform(0, max_dist)
-                        theta = random.uniform(0, 2*math.pi)
-                        cx = circle_center[0] + rx * math.cos(theta)
-                        cy = circle_center[1] + rx * math.sin(theta)
-                        
-                        # Generate equilateral points around this center
-                        side_length = random.randint(self.config.MIN_TRIANGLE_SIDE, self.config.MAX_TRIANGLE_SIDE)
-                        # Ensure side length fits (approximate check, could be better but let's rely on rejection for strictness)
-                        # We used a safe margin based on MAX side, so current side should fit if we regenerate points
-                        dist = side_length / math.sqrt(3)
-                        angle_offset = random.uniform(0, 2 * math.pi)
-                        points = []
-                        for i in range(3):
-                            angle = angle_offset + i * (2 * math.pi / 3)
-                            pt_x = int(cx + dist * math.cos(angle))
-                            pt_y = int(cy + dist * math.sin(angle))
-                            points.append((pt_x, pt_y))
-                        triangle_points = points
-                    
-                    if not GeometryUtils.is_triangle_in_circle(triangle_points, circle_center, circle_radius):
-                        attempts += 1
-                        continue
-            
-            elif label == 'outside':
-                if not GeometryUtils.is_triangle_outside_circle(triangle_points, circle_center, circle_radius):
-                    attempts += 1
-                    continue
-            
-            # Draw shapes
-            # Circle: Filled Gray (128)
-            x, y = circle_center
-            r = circle_radius
-            draw.ellipse([x-r, y-r, x+r, y+r], outline=None, fill=128)
-            
-            # Triangle: Filled Black (0)
-            draw.polygon(triangle_points, outline=None, fill=0)
+        img = Image.new('L', (w, h), 255)
+        draw = ImageDraw.Draw(img)
 
-            filename = f"image_{sample_id:04d}.png"
+        success = False
+        heatmap = None
+        label = 'negative'
+
+        # Dispatch to appropriate generator
+        if case_type == 'positive':
+            success_result = self.sample_gen.generate_positive_sample(w, h, draw, force_arrow)
+            label = 'positive'
+        elif case_type == 'positive_noise':
+            success_result = self.sample_gen.generate_positive_sample_with_noise(w, h, draw, force_arrow)
+            label = 'positive'
+        elif case_type == 'neg_circle_only':
+            success_result = self.sample_gen.generate_negative_circle_only(w, h, draw, force_arrow)
+        elif case_type == 'neg_two_triangles':
+            success_result = self.sample_gen.generate_negative_two_triangles_in(w, h, draw, force_arrow)
+        elif case_type == 'neg_triangle_out':
+            success_result = self.sample_gen.generate_negative_triangle_out(w, h, draw, force_arrow)
+        elif case_type == 'neg_multiple_circles':
+            success_result = self.sample_gen.generate_negative_multiple_circles(w, h, draw, force_arrow)
+        elif case_type == 'neg_disjoint':
+            success_result = self.sample_gen.generate_negative_disjoint(w, h, draw, force_arrow)
+        elif case_type == 'neg_empty':
+            success_result = self.sample_gen.generate_negative_empty(w, h, draw, force_arrow)
+
+        # Parse result
+        has_arrow = False
+        if isinstance(success_result, tuple):
+            if len(success_result) == 3:
+                success, heatmap, has_arrow = success_result
+            else:
+                success, heatmap = success_result
+        else:
+            success = success_result
+            heatmap = None
+
+        if success:
+            filename = f"image_{sample_id:05d}.png"
             filepath = os.path.join(self.images_dir, filename)
-            img.save(filepath)
-            
-            return filename, label
-        
-        return None, None
+
+            # Delete existing file if it exists (avoids PIL auto-numbering)
+            if os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except Exception as e:
+                    # Likely a lock issue (sync service). PIL might create image_00xxx 2.png
+                    pass
+
+            try:
+                img.save(filepath)
+            except Exception as e:
+                # If save fails, we still return the expected name, cleanup will fix it
+                print(f"  Warning: Save failed for {filename}, cleanup will attempt fix. ({e})")
+
+            img.close()  # Close the image to release file handle
+
+            # Save heatmap if it exists (tuple of values and RGB)
+            if success and heatmap:
+                heatmap_values, heatmap_rgb = heatmap
+
+                # Save RGB version for HTML visualization
+                heatmap_png_path = os.path.join(self.heatmaps_dir, f"image_{sample_id:05d}_heatmap.png")
+                if os.path.exists(heatmap_png_path):
+                    os.remove(heatmap_png_path)
+                heatmap_rgb.save(heatmap_png_path)
+                heatmap_rgb.close()  # Close to release file handle
+
+                # Save raw values for training (numpy array)
+                heatmap_npy_path = os.path.join(self.heatmaps_dir, f"image_{sample_id:05d}_heatmap.npy")
+                if os.path.exists(heatmap_npy_path):
+                    os.remove(heatmap_npy_path)
+                np.save(heatmap_npy_path, heatmap_values)
+
+            return filename, label, has_arrow
+
+        return None, None, False
 
     def run(self):
+        """Lance la génération du dataset complet."""
         annotations = []
-        num_inside = int(self.config.NUM_IMAGES * self.config.RATIO_INSIDE)
-        num_outside = self.config.NUM_IMAGES - num_inside
-        
-        labels = ['inside'] * num_inside + ['outside'] * num_outside
-        random.shuffle(labels)
-        
-        print(f"Generating {self.config.NUM_IMAGES} images...")
-        
-        # Clean output dir
-        # ... logic if needed, but we overwrite files anyway
-        
-        for i, label in enumerate(labels):
-            filename, lbl = self.generate_sample(i, label)
-            if filename:
-                annotations.append({'filename': filename, 'class': lbl})
-            else:
-                print(f"Failed to generate sample {i} ({label})")
+        total = self.config.NUM_IMAGES
 
-        # Save annotations
+        # Utiliser la configuration pour les ratios
+        positive_count = int(total * self.config.POSITIVE_RATIO / 100)
+        negative_count = total - positive_count
+
+        neg_types = self.config.NEGATIVE_CASE_TYPES
+
+        tasks = []
+        # Positifs: séparer ceux avec bruit de ceux sans bruit
+        pos_with_noise_count = int(positive_count * self.config.POSITIVE_WITH_NOISE_RATIO / 100)
+        pos_without_noise_count = positive_count - pos_with_noise_count
+
+        # Pour les positifs sans bruit
+        pos_no_noise_arrow = int(pos_without_noise_count * self.config.ARROW_RATIO_POSITIVE / 100)
+        pos_no_noise_no_arrow = pos_without_noise_count - pos_no_noise_arrow
+        positives_clean = [('positive', True)] * pos_no_noise_arrow + [('positive', False)] * pos_no_noise_no_arrow
+
+        # Pour les positifs avec bruit
+        pos_noise_arrow = int(pos_with_noise_count * self.config.ARROW_RATIO_POSITIVE / 100)
+        pos_noise_no_arrow = pos_with_noise_count - pos_noise_arrow
+        positives_noisy = [('positive_noise', True)] * pos_noise_arrow + [('positive_noise', False)] * pos_noise_no_arrow
+
+        positives = positives_clean + positives_noisy
+
+        # Négatifs avec pourcentage de flèches configurable
+        neg_count = negative_count
+
+        # Calculate base counts for exactly 6 types
+        num_types = len(neg_types)
+        base_count = neg_count // num_types
+        remainder = neg_count % num_types
+
+        type_counts = [base_count] * num_types
+        for i in range(remainder):
+            type_counts[i] += 1
+
+        negatives = []
+
+        # Utiliser le ratio de flèches depuis la config
+        arrow_target = int(neg_count * self.config.ARROW_RATIO_NEGATIVE / 100)
+        arrows_assigned = 0
+
+        # Build the exact splits
+        for type_idx, count in enumerate(type_counts):
+            # Répartir les flèches proportionnellement
+            type_arrow_target = int(count * self.config.ARROW_RATIO_NEGATIVE / 100)
+
+            # Si dernier type, ajuster pour atteindre exactement le target global
+            if type_idx == num_types - 1:
+                type_arrow_target = arrow_target - arrows_assigned
+
+            arrows_assigned += type_arrow_target
+            type_no_arrow_target = count - type_arrow_target
+
+            # Append correct totals
+            negatives.extend([(neg_types[type_idx], True)] * type_arrow_target)
+            negatives.extend([(neg_types[type_idx], False)] * type_no_arrow_target)
+
+        tasks = positives + negatives
+        random.shuffle(tasks)
+
+        print(f"Generating {total} images...")
+
+        # Clean dir roughly
+        for f in os.listdir(self.images_dir):
+            os.remove(os.path.join(self.images_dir, f))
+        for f in os.listdir(self.heatmaps_dir):
+            if f.endswith('.png') or f.endswith('.npy'):
+                os.remove(os.path.join(self.heatmaps_dir, f))
+
+        count = 0
+        for i, _ in enumerate(tasks):
+            # Try loop to ensure success (max 100 attempts per image)
+            max_attempts = 100
+            for attempt in range(max_attempts):
+                case_type, force_arrow = tasks[i]
+                filename, label, has_arrow = self.generate_sample(count, case_type, force_arrow)
+                if filename:
+                    annotations.append({
+                        "filename": filename,
+                        "class": label,
+                        "case": case_type,
+                        "has_arrow": has_arrow
+                    })
+                    count += 1
+                    break
+            else:
+                # Failed after max_attempts
+                print(f"Warning: Failed to generate image {count} after {max_attempts} attempts")
+                count += 1
+
+        print(f"Generated {count} / {total} images successfully.")
+
+        # Save data.js for HTML visualization
+        data_js_path = os.path.join(self.config.OUTPUT_DIR, 'data.js')
+        with open(data_js_path, 'w') as f:
+            f.write(f"const datasetData = {json.dumps(annotations, indent=2)};")
+        print(f"  → data.js")
+
+        # Also save CSV for training scripts compatibility
         csv_path = os.path.join(self.config.OUTPUT_DIR, 'annotations.csv')
-        json_path = os.path.join(self.config.OUTPUT_DIR, 'annotations.json')
-        
         with open(csv_path, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['filename', 'class'])
+            writer = csv.DictWriter(f, fieldnames=['filename', 'class', 'case', 'has_arrow'])
             writer.writeheader()
             writer.writerows(annotations)
-            
-        with open(json_path, 'w') as f:
-            json.dump(annotations, f, indent=4)
-            
-        print(f"Dataset generated at {self.config.OUTPUT_DIR}")
+        print(f"  → annotations.csv")
+
+        print(f"\n✓ Dataset generated at {self.config.OUTPUT_DIR}")
+        print(f"  {len([a for a in annotations if a['class'] == 'positive'])} positive images")
+        print(f"  {len([a for a in annotations if a['class'] == 'negative'])} negative images")
+
 
 if __name__ == "__main__":
     gen = DatasetGenerator(Config)

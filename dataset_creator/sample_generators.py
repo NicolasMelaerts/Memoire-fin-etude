@@ -6,10 +6,8 @@ Contient tous les générateurs de samples :
 - Négatifs : cercle seul, 2 triangles, triangle dehors, etc.
 """
 import random
-from geometry_utils import GeometryUtils
-from shape_generators import ShapeGenerator
-from heatmap_generator import HeatmapGenerator
 import math
+from geometry_utils import GeometryUtils
 
 
 class SampleGenerator:

@@ -58,7 +58,6 @@ class DatasetGenerator:
         img = Image.new('L', (w, h), 255)
         draw = ImageDraw.Draw(img)
 
-        success = False
         heatmap = None
         label = 'negative'
 
@@ -82,16 +81,11 @@ class DatasetGenerator:
         elif case_type == 'neg_empty':
             success_result = self.sample_gen.generate_negative_empty(w, h, draw, force_arrow)
 
-        # Parse result
         has_arrow = False
         if isinstance(success_result, tuple):
-            if len(success_result) == 3:
-                success, heatmap, has_arrow = success_result
-            else:
-                success, heatmap = success_result
+            success, heatmap, has_arrow = success_result
         else:
             success = success_result
-            heatmap = None
 
         if success:
             filename = f"image_{sample_id:05d}.png"
@@ -113,11 +107,9 @@ class DatasetGenerator:
 
             img.close()  # Close the image to release file handle
 
-            # Save heatmap if it exists (tuple of values and RGB)
-            if success and heatmap:
+            if heatmap:
                 heatmap_values, heatmap_rgb = heatmap
 
-                # Save RGB version for HTML visualization
                 heatmap_png_path = os.path.join(self.heatmaps_dir, f"image_{sample_id:05d}_heatmap.png")
                 if os.path.exists(heatmap_png_path):
                     os.remove(heatmap_png_path)
@@ -145,7 +137,6 @@ class DatasetGenerator:
 
         neg_types = self.config.NEGATIVE_CASE_TYPES
 
-        tasks = []
         # Positifs: séparer ceux avec bruit de ceux sans bruit
         pos_with_noise_count = int(positive_count * self.config.POSITIVE_WITH_NOISE_RATIO / 100)
         pos_without_noise_count = positive_count - pos_with_noise_count
@@ -162,13 +153,9 @@ class DatasetGenerator:
 
         positives = positives_clean + positives_noisy
 
-        # Négatifs avec pourcentage de flèches configurable
-        neg_count = negative_count
-
-        # Calculate base counts for exactly 6 types
         num_types = len(neg_types)
-        base_count = neg_count // num_types
-        remainder = neg_count % num_types
+        base_count = negative_count // num_types
+        remainder = negative_count % num_types
 
         type_counts = [base_count] * num_types
         for i in range(remainder):
@@ -176,8 +163,7 @@ class DatasetGenerator:
 
         negatives = []
 
-        # Utiliser le ratio de flèches depuis la config
-        arrow_target = int(neg_count * self.config.ARROW_RATIO_NEGATIVE / 100)
+        arrow_target = int(negative_count * self.config.ARROW_RATIO_NEGATIVE / 100)
         arrows_assigned = 0
 
         # Build the exact splits

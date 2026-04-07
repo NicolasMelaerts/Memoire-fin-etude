@@ -20,3 +20,15 @@
 # Generated Datasets
 dataset_creator/generated_dataset/
 generated_dataset/
+
+# Résultats générés (images, métriques, data.js)
+experiences/Résultats/
+experiences/dataset_seed*/
+multi_dataset/aggregated_results/data.js
+real_datasets/results/
+real_datasets/results_fish/
+real_datasets/results_fish_2/
+
+# Python cache
+__pycache__/
+*.pyc

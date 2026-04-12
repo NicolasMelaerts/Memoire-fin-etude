@@ -12,6 +12,9 @@
 .bib
 
 
+# Mémoire canevas
+Memoire-canevas/
+
 # Editor temporary files
 .vscode/
 *.swp

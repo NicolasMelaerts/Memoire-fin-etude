@@ -28,6 +28,13 @@ multi_dataset/aggregated_results/data.js
 real_datasets/results/
 real_datasets/results_fish/
 real_datasets/results_fish_2/
+real_datasets/oiseaux/CUB_200_2011/
+real_datasets/oiseaux/cvpr2016_cub/
+real_datasets/oiseaux/results/
+real_datasets/oiseaux/segmentations/
+real_datasets/poissons/fish-dataset/
+real_datasets/poissons/results/
+real_datasets/poissons/results_efficacite/
 
 # Python cache
 __pycache__/

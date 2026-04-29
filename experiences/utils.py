@@ -46,7 +46,8 @@ def set_seed(seed):
 # ---------------------------------------------------------------------------
 def generate_gradcam_examples(models_dict, test_ds, results_dir, seed,
                               compute_gradcam_fn, device, n_samples=10,
-                              extract_case_fn=None):
+                              extract_case_fn=None, subdir='gradcam_comparison',
+                              sample_indices=None):
     """
     Génère des exemples GradCAM pour chaque modèle sur les mêmes images.
 
@@ -59,17 +60,21 @@ def generate_gradcam_examples(models_dict, test_ds, results_dir, seed,
         device:            device PyTorch ('cuda' ou 'cpu')
         n_samples:         nombre d'exemples à générer
         extract_case_fn:   fonction optionnelle pour extraire le 'case_type' depuis le dataset
+        subdir:            nom du sous-dossier pour les images (défaut: 'gradcam_comparison')
 
     Returns:
         examples : liste de dicts avec les infos pour chaque sample
     """
-    examples_dir = os.path.join(results_dir, 'gradcam_comparison')
+    examples_dir = os.path.join(results_dir, subdir)
     os.makedirs(examples_dir, exist_ok=True)
 
-    indices = list(range(min(n_samples, len(test_ds))))
-    random.seed(seed)
-    random.shuffle(indices)
-    indices = indices[:n_samples]
+    if sample_indices is not None:
+        indices = list(sample_indices)[:n_samples]
+    else:
+        indices = list(range(min(n_samples, len(test_ds))))
+        random.seed(seed)
+        random.shuffle(indices)
+        indices = indices[:n_samples]
 
     classes = ['Inside', 'Outside']
     examples = []

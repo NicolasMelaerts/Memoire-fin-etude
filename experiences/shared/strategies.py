@@ -238,97 +238,124 @@ class GradCAMStrategy(BaseStrategy):
         return ['loc_loss']
 
 
+
 # ===========================================================================
-# Strategy 4: GAIN (Gradient-Adjusted Input Network)
+# Strategy 4: GAIN (Guided Attention Inference Network)
+# Li et al., "Tell Me Where to Look: Guided Attention Inference Network", CVPR 2018
 # ===========================================================================
 
 class GAINStrategy(BaseStrategy):
     """
-    Stratégie GAIN : masquage d'attention.
+    Stratégie GAIN (Guided Attention Inference Network) — Li et al., CVPR 2018.
 
-    Loss = CE(original) + λ * CE(masked)
+    Implémentation fidèle à la variante self-guidée (Section 3.1 de l'article).
 
-    où masked = image * (1 - attention_mask)
-    et attention_mask est dérivé des gradients d'entrée.
+    Pipeline :
+      1. Carte d'attention A^c via Grad-CAM sur la dernière couche conv (éq. 1–2).
+      2. Masque soft différentiable T(A^c) via sigmoid paramétrique (éq. 3–4).
+      3. Image masquée I^{*c} = I - T(A^c) ⊙ I  (éq. 3).
+      4. Loss totale : L_self = L_cl + α * L_am  (éq. 6)
+         avec L_am = (1/n) Σ_c  s^c(I^{*c})     (éq. 5)
+         où s^c(·) est le score softmax de la classe c.
 
-    Force le modèle à ne pas pouvoir classer correctement si on cache la zone importante.
+    Paramètres :
+        lambda_gain : poids de L_am (noté α dans l'article, = 1 dans leurs expériences)
+        omega   : échelle du sigmoid T (noté ω dans l'article)
+        sigma   : seuil du sigmoid T (noté σ dans l'article, matrice scalaire ici)
     """
 
-    def __init__(self, lambda_gain=1.0):
+    def __init__(self, lambda_gain=1.0, omega=10.0, sigma=0.5):
         super().__init__(f"GAIN (λ={lambda_gain})")
-        self.lambda_gain = lambda_gain
+        self.lambda_gain = lambda_gain  # α dans l'article (éq. 6)
+        self.omega = omega              # échelle du sigmoid (éq. 4)
+        self.sigma = sigma              # seuil du sigmoid  (éq. 4)
 
     def compute_loss(self, model, images, labels, heatmaps):
-        # (1) Forward normal avec gradients sur l'entrée
-        images_with_grad = images.clone().requires_grad_(True)
-        logits = model(images_with_grad)
-        ce_loss = self.ce_criterion(logits, labels)
+        B = images.size(0)
 
-        # (2) Calculer les gradients par rapport à l'entrée
-        grads = torch.autograd.grad(
-            ce_loss, images_with_grad,
-            create_graph=True,
-            retain_graph=True,
-        )[0]
+        # ------------------------------------------------------------------
+        # Étape 1 & 2 — Carte d'attention A^c par Grad-CAM (éq. 1–2)
+        # compute_gradcam_differentiable retourne A^c normalisée dans [0,1]
+        # et les logits du forward classique (stream S_cl).
+        # ------------------------------------------------------------------
+        A_c, logits = compute_gradcam_differentiable(model, images, labels)
+        # A_c   : [B, 1, 128, 128], dans [0, 1]
+        # logits: [B, 2]
 
-        # (3) Construire un masque d'attention depuis les gradients
-        attention_map = grads.abs().mean(dim=1, keepdim=True)  # [B, 1, H, W]
+        # ------------------------------------------------------------------
+        # Étape 3 — Perte de classification L_cl  (éq. 6)
+        # ------------------------------------------------------------------
+        L_cl = self.ce_criterion(logits, labels)
 
-        # Normaliser dans [0, 1]
-        B = attention_map.size(0)
-        att_flat = attention_map.view(B, -1)
-        att_min = att_flat.min(dim=1, keepdim=True).values
-        att_max = att_flat.max(dim=1, keepdim=True).values
-        att_norm = (att_flat - att_min) / (att_max - att_min + 1e-8)
-        attention_map = att_norm.view_as(attention_map)
+        # ------------------------------------------------------------------
+        # Étape 4 — Masque soft T(A^c) différentiable (éq. 4)
+        #
+        #   T(A^c) = sigmoid(-ω * (A^c - σ))
+        #          = 1 / (1 + exp(-ω * (A^c - σ)))
+        #
+        # Quand A^c_{i,j} >> σ  →  T ≈ 1  (zone très activée → masquée)
+        # Quand A^c_{i,j} << σ  →  T ≈ 0  (zone peu activée → conservée)
+        # ------------------------------------------------------------------
+        T_Ac = torch.sigmoid(self.omega * (A_c - self.sigma))  # [B, 1, 128, 128]
 
-        # (4) Masquer l'image (cacher les zones importantes)
-        masked_images = images * (1.0 - attention_map)
+        # ------------------------------------------------------------------
+        # Étape 5 — Image masquée I^{*c} = I - T(A^c) ⊙ I  (éq. 3)
+        # Les régions fortement activées sont soustraites (mises à ~0).
+        # ------------------------------------------------------------------
+        I_masked = images - T_Ac * images  # [B, 1, 128, 128]
 
-        # (5) Forward sur l'image masquée
-        logits_masked = model(masked_images)
+        # ------------------------------------------------------------------
+        # Étape 6 — Score de la classe cible sur l'image masquée (éq. 5)
+        #
+        #   L_am = (1/n) Σ_c  s^c(I^{*c})
+        #
+        # s^c(·) est le score softmax pour la classe c.
+        # On minimise ce score → le modèle ne doit plus reconnaître la classe
+        # sur l'image masquée.
+        # ------------------------------------------------------------------
+        logits_masked = model(I_masked)                              # [B, 2]
+        probs_masked  = F.softmax(logits_masked, dim=1)              # [B, 2]
+        scores_c      = probs_masked[torch.arange(B), labels]        # [B]
+        L_am          = scores_c.mean()                              # scalaire
 
-        # (6) Loss sur l'image masquée (on veut que le modèle échoue sur l'image masquée)
-        # On maximise l'entropie → le modèle devrait être incertain
-        # Ici on utilise la CE avec le label opposé (flip 0↔1)
-        labels_flipped = 1 - labels
-        masked_loss = self.ce_criterion(logits_masked, labels_flipped)
-
-        # Loss totale
-        total_loss = ce_loss + self.lambda_gain * masked_loss
+        # ------------------------------------------------------------------
+        # Loss totale L_self = L_cl + α * L_am  (éq. 6)
+        # ------------------------------------------------------------------
+        total_loss = L_cl + self.lambda_gain * L_am
 
         metrics = {
-            'ce_loss': ce_loss.item(),
-            'masked_loss': masked_loss.item(),
-            'logits': logits.detach()
+            'ce_loss': L_cl.item(),
+            'am_loss': L_am.item(),
+            'logits':  logits.detach()
         }
 
         return total_loss, metrics
 
     def get_tracking_metrics(self):
-        return ['masked_loss']
+        return ['am_loss']
 
 
 # ===========================================================================
 # Strategy 5: Right for the Right Reasons (RRR)
+# Andrew Slavin Ross et al., "Right for the Right Reasons: Training Differentiable Models by Constraining
+# their Explanations", IJCAI 2017
 # ===========================================================================
 
 class RRRStrategy(BaseStrategy):
     """
-    Stratégie Right for the Right Reasons (Ross et al. 2017).
+    Stratégie Right for the Right Reasons (Ross et al., IJCAI 2017).
 
-    Loss = CE + λ * ||A ⊙ ∇_x log p(y|x)||²
+    Loss = CE + λ * ||A ⊙ ∇_x Σ_k log ŷ_k||²
 
     où :
-    - A = masque des régions interdites (1 = interdit, 0 = autorisé)
-    - A = 1 - heatmap (on interdit tout sauf la zone pertinente)
-    - ∇_x log p(y|x) = gradients de la log-probabilité par rapport à l'entrée
+    - A = masque des régions interdites = 1 - heatmap
+      (1 = pixel interdit, 0 = pixel autorisé)
+    - ∇_x Σ_k log ŷ_k = gradient de la somme des log-probabilités
+      sur toutes les classes, par rapport aux pixels d'entrée
 
-    Pénalise les gradients dans les zones interdites pour forcer le modèle
-    à se concentrer sur les bonnes régions.
-
-    Référence : Ross et al., "Right for the Right Reasons: Training Differentiable
-                Models by Constraining their Explanations", IJCAI 2017
+    Pénalise les gradients d'entrée dans les zones non pertinentes,
+    forçant le modèle à construire ses décisions uniquement à partir
+    des régions indiquées par les heatmaps de supervision.
     """
 
     def __init__(self, lambda_rrr=10.0):
@@ -336,35 +363,50 @@ class RRRStrategy(BaseStrategy):
         self.lambda_rrr = lambda_rrr
 
     def compute_loss(self, model, images, labels, heatmaps):
-        # (1) Forward avec gradients activés sur l'entrée
+        # (1) Cloner les images et activer le suivi des gradients par rapport
+        #     aux pixels d'entrée. Le clone évite de modifier le tenseur original.
         images_with_grad = images.clone().requires_grad_(True)
+
+        # (2) Propagation avant : obtenir les logits et la cross-entropy.
         logits = model(images_with_grad)
         ce_loss = self.ce_criterion(logits, labels)
 
-        # (2) Calculer log p(y|x) pour la classe vraie
-        log_probs = F.log_softmax(logits, dim=1)  # [B, num_classes]
+        # (3) Calculer les log-probabilités sur toutes les classes via log-softmax.
+        #     log_probs[i, k] = log p_θ(classe k | x_i)
+        #     shape : [B, K]
+        log_probs = F.log_softmax(logits, dim=1)
 
-        # Récupérer les log-probabilités des classes vraies
         B = images.size(0)
-        target_log_probs = log_probs[torch.arange(B), labels]  # [B]
 
-        # (3) Calculer ∇_x log p(y|x)
+        # (4) Calculer le gradient de la somme des log-probabilités sur le batch
+        #     ET sur toutes les classes, par rapport aux pixels d'entrée.
+        #     C'est la formulation exacte de Ross et al. : Σ_n Σ_k log ŷ_nk.
+        #     create_graph=True est indispensable : la pénalité dépend de ces
+        #     gradients, qui dépendent eux-mêmes de θ. L'optimisation requiert
+        #     donc des dérivées d'ordre deux.
+        #     shape résultante : [B, 1, H, W]
         grads = torch.autograd.grad(
-            target_log_probs.sum(),
+            log_probs.sum(),   # scalaire : somme sur batch et classes
             images_with_grad,
             create_graph=True,
             retain_graph=True,
-        )[0]  # [B, 1, H, W]
+        )[0]
 
-        # (4) Construire le masque des régions interdites
-        # A = 1 - heatmap (1 = interdit, 0 = autorisé)
-        forbidden_mask = 1.0 - heatmaps  # [B, 1, H, W]
+        # (5) Construire le masque des régions interdites.
+        #     A = 1 - H : là où la heatmap est élevée (zone pertinente),
+        #     le masque est proche de 0 (gradient libre).
+        #     Là où la heatmap est faible (fond, distracteurs),
+        #     le masque est proche de 1 (gradient pénalisé).
+        #     shape : [B, 1, H, W]
+        forbidden_mask = 1.0 - heatmaps
 
-        # (5) Pénalité RRR : ||A ⊙ ∇_x||² (L2 au carré des gradients dans zones interdites)
+        # (6) Appliquer le masque aux gradients (produit de Hadamard),
+        #     puis calculer la pénalité RRR : norme L2 au carré des gradients
+        #     dans les zones interdites, moyennée sur le batch.
         masked_grads = forbidden_mask * grads
         rrr_penalty = (masked_grads ** 2).sum() / B
 
-        # (6) Loss totale
+        # (7) Combiner cross-entropy et pénalité RRR.
         total_loss = ce_loss + self.lambda_rrr * rrr_penalty
 
         metrics = {

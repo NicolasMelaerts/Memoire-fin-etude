@@ -1,11 +1,11 @@
 """
-exp_poissons_efficacite.py — GradCAM avec moins de données (suite de exp_poissons.py)
+exp_poissons_efficacite.py — Normal & GradCAM avec moins de données (suite de exp_poissons.py)
 
 Réutilise les résultats déjà calculés dans exp_poissons.py :
   - Normal  100%  → chargé depuis results/metrics.json
   - GradCAM 100%  → chargé depuis results/metrics.json
 
-N'entraîne que les variantes GradCAM avec moins d'images :
+Entraîne Normal et GradCAM avec moins d'images :
   90%, 80%, 70%, 60%, 50%, 40%, 30%, 20%, 10%
   (même split exact que exp_poissons.py : DATASET_FRAC=0.25)
 
@@ -50,7 +50,7 @@ BATCH_SIZE   = 32
 EPOCHS       = 15
 LR           = 1e-3
 SEED         = 42
-LAMBDA_GC    = 0.1
+LAMBDA_GC    = 0.5
 TRAIN_RATIO  = 0.8
 DATASET_FRAC = 0.25   # même valeur que run_fish.py → même split
 DEVICE       = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -262,6 +262,22 @@ def localisation_loss(cam_batch, heatmaps):
     ).mean()
 
 
+def train_epoch_normal(model, loader, optimizer):
+    model.train()
+    total_loss = total_correct = total = 0
+    for images, labels, _, _ in loader:
+        images, labels = images.to(DEVICE), labels.to(DEVICE)
+        optimizer.zero_grad()
+        logits = model(images)
+        loss   = F.cross_entropy(logits, labels)
+        loss.backward()
+        optimizer.step()
+        total_loss    += loss.item()
+        total_correct += (logits.argmax(1) == labels).sum().item()
+        total         += labels.size(0)
+    return total_loss / len(loader), 100. * total_correct / total
+
+
 def train_epoch_gradcam(model, loader, optimizer):
     model.train()
     total_loss = total_ce = total_correct = total = 0
@@ -310,7 +326,8 @@ def compute_mean_iou(model, test_ds, n_samples=200):
     return float(np.mean(ious)) if ious else 0.0
 
 
-def train_model(name, train_loader, test_loader, epochs, verbose=True):
+def train_model(name, mode, train_loader, test_loader, epochs, verbose=True):
+    """mode: 'normal' ou 'gradcam'"""
     set_seed(SEED)
     model     = SimpleCNN_RGB(n_classes=N_CLASSES).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-4)
@@ -321,8 +338,12 @@ def train_model(name, train_loader, test_loader, epochs, verbose=True):
     t0 = time.time()
 
     for epoch in range(epochs):
-        tr_loss, tr_ce, tr_acc = train_epoch_gradcam(model, train_loader, optimizer)
-        te_loss, te_acc        = eval_epoch(model, test_loader)
+        if mode == 'normal':
+            tr_loss, tr_acc = train_epoch_normal(model, train_loader, optimizer)
+            tr_ce = tr_loss
+        else:
+            tr_loss, tr_ce, tr_acc = train_epoch_gradcam(model, train_loader, optimizer)
+        te_loss, te_acc = eval_epoch(model, test_loader)
         scheduler.step()
 
         history['train_loss'].append(tr_loss)
@@ -343,24 +364,32 @@ def train_model(name, train_loader, test_loader, epochs, verbose=True):
 # Courbes PNG
 # ---------------------------------------------------------------------------
 def plot_curves(all_histories, all_configs, epochs, output_path):
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    fig.suptitle('Normal 100% vs GradCAM avec moins de données', fontsize=13, fontweight='bold')
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    fig.suptitle('Normal vs GradCAM avec moins de données', fontsize=13, fontweight='bold')
     for name, mode, frac, n_train in all_configs:
         h = all_histories.get(name)
         if h is None:
             continue
         ep = range(1, len(h['test_acc']) + 1)
-        if mode == 'normal':
+        if mode == 'normal' and frac == 1.0:
             color, ls, lw, zorder = '#2196F3', '-',  2.5, 10
-        elif frac == 1.0:
-            color, ls, lw, zorder = '#FF9800', '--', 2.0, 9
+        elif mode == 'gradcam' and frac == 1.0:
+            color, ls, lw, zorder = '#FF9800', '-', 2.5, 9
+        elif mode == 'normal':
+            # dégradé du bleu clair vers le bleu foncé selon la fraction
+            t     = 1.0 - frac
+            r     = int(33 + 100 * (1 - t))
+            g     = int(150 + 100 * (1 - t))
+            b     = int(243)
+            color = f'#{r:02x}{g:02x}{b:02x}'
+            ls, lw, zorder = '-', 1.2, 4
         else:
             # dégradé du jaune vers le rouge selon la fraction
-            t     = 1.0 - frac           # 0 (100%) → 1 (10%)
+            t     = 1.0 - frac
             r     = int(255)
             g     = int(152 * (1 - t))
             color = f'#{r:02x}{g:02x}00'
-            ls, lw, zorder = '--', 1.5, 5
+            ls, lw, zorder = '--', 1.2, 5
 
         label = f"{name} (n={n_train})"
         axes[0].plot(ep, h['test_acc'],  color=color, ls=ls, lw=lw, zorder=zorder, label=label)
@@ -371,7 +400,7 @@ def plot_curves(all_histories, all_configs, epochs, output_path):
         (axes[1], 'Test Loss',         'Loss'),
     ]:
         ax.set_title(title); ax.set_xlabel('Epoch'); ax.set_ylabel(ylabel)
-        ax.legend(fontsize=7, ncol=2); ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=6, ncol=2); ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
@@ -418,11 +447,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print('=' * 70)
-    print('  Fish Dataset : Normal 100% vs GradCAM avec moins de données')
+    print('  Fish Dataset : Normal vs GradCAM avec moins de données')
     print('=' * 70)
     print(f'  Device  : {DEVICE}')
     print(f'  Epochs  : {EPOCHS}')
-    print(f'  Fractions GradCAM : {[f"{int(f*100)}%" for f in GC_FRACTIONS]}')
+    print(f'  Fractions Normal & GradCAM : {[f"{int(f*100)}%" for f in GC_FRACTIONS]}')
     print()
 
     if args.clean and os.path.exists(RESULTS_DIR):
@@ -480,7 +509,7 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------
     # Noms depuis run_fish.py
     NAME_NORMAL = 'Normal'
-    NAME_GC100  = 'GradCAM (λ=0.1)'
+    NAME_GC100  = 'GradCAM (λ=0.5)'
 
     all_configs = [
         (NAME_NORMAL, 'normal',  1.0, n_train_full),
@@ -488,6 +517,7 @@ if __name__ == '__main__':
     ]
     for frac in GC_FRACTIONS:
         n = max(1, int(n_train_full * frac))
+        all_configs.append((f'Normal {int(frac*100)}%',  'normal',  frac, n))
         all_configs.append((f'GradCAM {int(frac*100)}%', 'gradcam', frac, n))
 
     # Fusionner les historiques
@@ -513,7 +543,7 @@ if __name__ == '__main__':
 
         train_loader, test_loader, test_ds = make_loaders(train_samples, test_samples, frac)
         print(f'▶ Entraînement {name}  ({n_train} images train)...')
-        model, h, d = train_model(name, train_loader, test_loader, EPOCHS)
+        model, h, d = train_model(name, mode, train_loader, test_loader, EPOCHS)
         all_histories[name] = h
         all_durations[name] = d
         models_out[name]    = (model, test_ds)
@@ -530,7 +560,7 @@ if __name__ == '__main__':
     # 6. IoU pour les nouveaux modèles seulement
     # ------------------------------------------------------------------
     for name, mode, frac, n_train in all_configs:
-        if name in (NAME_NORMAL, NAME_GC100):
+        if name in (NAME_NORMAL, NAME_GC100) and name in all_iou:
             continue   # IoU déjà dans iou1
         if name not in all_iou:
             if name in models_out:

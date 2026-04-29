@@ -111,6 +111,56 @@ class SimpleCNN_RGB(nn.Module):
 
 
 # ---------------------------------------------------------------------------
+# Modèle — ResNet18 pré-entraîné (Transfer Learning)
+# ---------------------------------------------------------------------------
+class ResNet18_Fish(nn.Module):
+    """ResNet18 pré-entraîné sur ImageNet, fine-tuné pour N classes."""
+
+    def __init__(self, n_classes=N_CLASSES):
+        super().__init__()
+        from torchvision import models
+        weights = models.ResNet18_Weights.IMAGENET1K_V1
+        self.resnet = models.resnet18(weights=weights)
+
+        # Geler les premières couches (conv1, bn1, layer1, layer2)
+        for name, param in self.resnet.named_parameters():
+            if not name.startswith('layer3') and not name.startswith('layer4') and not name.startswith('fc'):
+                param.requires_grad = False
+
+        # Remplacer la couche FC finale
+        in_features = self.resnet.fc.in_features
+        self.resnet.fc = nn.Sequential(
+            nn.Dropout(0.3),
+            nn.Linear(in_features, n_classes)
+        )
+
+        # GradCAM cible la dernière couche convolutive (layer4)
+        self.gradcam_layer = self.resnet.layer4[-1].conv2
+
+    def forward(self, x):
+        return self.resnet(x)
+
+    def forward_features(self, x):
+        """Retourne les feature maps de layer4 (avant avgpool)."""
+        x = self.resnet.conv1(x)
+        x = self.resnet.bn1(x)
+        x = self.resnet.relu(x)
+        x = self.resnet.maxpool(x)
+        x = self.resnet.layer1(x)
+        x = self.resnet.layer2(x)
+        x = self.resnet.layer3(x)
+        x = self.resnet.layer4(x)
+        return x  # [B, 512, H, W]
+
+    def forward_from_features(self, feat):
+        """Classification depuis les feature maps de layer4."""
+        x = self.resnet.avgpool(feat)
+        x = torch.flatten(x, 1)
+        x = self.resnet.fc(x)
+        return x
+
+
+# ---------------------------------------------------------------------------
 # Dataset Fish
 # ---------------------------------------------------------------------------
 class FishDataset(Dataset):
@@ -345,12 +395,19 @@ def compute_mean_iou(model, test_ds, n_samples=200):
 # ---------------------------------------------------------------------------
 # Entraînement complet d'un modèle
 # ---------------------------------------------------------------------------
-def train_model(name, mode, train_loader, test_loader, epochs, verbose=True):
-    """mode: 'normal' ou 'gradcam'"""
+def train_model(name, mode, train_loader, test_loader, epochs, verbose=True,
+                model_class=None):
+    """mode: 'normal' ou 'gradcam'. model_class: classe du modèle (défaut: SimpleCNN_RGB)."""
     set_seed(SEED)
-    model = SimpleCNN_RGB(n_classes=N_CLASSES).to(DEVICE)
-    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-5)
+    cls = model_class or SimpleCNN_RGB
+    model = cls(n_classes=N_CLASSES).to(DEVICE)
+
+    # Learning rate plus bas pour le fine-tuning ResNet
+    lr = LR * 0.1 if cls is ResNet18_Fish else LR
+    # Seuls les paramètres non gelés sont optimisés
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = optim.Adam(trainable_params, lr=lr, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
 
     history = {'train_loss': [], 'train_acc': [], 'train_ce': [],
                'test_loss': [], 'test_acc': []}
@@ -486,9 +543,11 @@ def plot_curves(histories, epochs, output_path):
     epochs_range = range(1, epochs + 1)
     colors = {
         'Normal': '#2196F3', 'GradCAM (λ=0.1)': '#FF9800',
+        'Normal-ResNet18': '#4CAF50', 'GradCAM-ResNet18': '#E91E63',
     }
     styles = {
         'Normal': '-', 'GradCAM (λ=0.1)': '--',
+        'Normal-ResNet18': '-', 'GradCAM-ResNet18': '--',
     }
 
     for name, h in histories.items():
@@ -563,16 +622,19 @@ if __name__ == '__main__':
 
     models_out = {}
     configs = [
-        ('Normal',          'normal'),
-        ('GradCAM (λ=0.1)', 'gradcam'),
+        ('Normal',               'normal',  SimpleCNN_RGB),
+        ('GradCAM (λ=0.1)',      'gradcam', SimpleCNN_RGB),
+        ('Normal-ResNet18',      'normal',  ResNet18_Fish),
+        ('GradCAM-ResNet18',     'gradcam', ResNet18_Fish),
     ]
 
-    for name, mode in configs:
+    for name, mode, model_cls in configs:
         if name in histories:
             print(f'  [⏭]  {name} : déjà entraîné (--clean pour réentraîner)')
             continue
         print(f'▶ Entraînement {name}...')
-        model, h, d = train_model(name, mode, train_loader, test_loader, EPOCHS)
+        model, h, d = train_model(name, mode, train_loader, test_loader, EPOCHS,
+                                  model_class=model_cls)
 
         _, _, pca = eval_epoch(model, test_loader)
 
@@ -590,7 +652,7 @@ if __name__ == '__main__':
         print(f'  ✓ {d:.0f}s — test_acc={h["test_acc"][-1]:.1f}%\n')
 
     # IoU GradCAM ↔ Segmentation
-    for name, mode in configs:
+    for name, mode, _ in configs:
         if name not in iou_scores:
             if name in models_out:
                 print(f'▶ Calcul IoU GradCAM ↔ Segmentation pour {name}...')
@@ -626,11 +688,11 @@ if __name__ == '__main__':
     print('=' * 70)
     print('  RÉSULTATS FINAUX')
     print('=' * 70)
-    for name in [n for n, _ in configs]:
+    for name, _, _ in configs:
         if name not in histories: continue
         h   = histories[name]
         iou = iou_scores.get(name, 0)
-        print(f'  {name:20s}  train_acc={h["train_acc"][-1]:.1f}%  '
+        print(f'  {name:25s}  train_acc={h["train_acc"][-1]:.1f}%  '
               f'test_acc={h["test_acc"][-1]:.1f}%  '
               f'IoU={iou:.3f}  {durations[name]:.0f}s')
 

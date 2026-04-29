@@ -133,7 +133,7 @@ def compute_confusion_matrix(model, test_loader, device, df_ref=None):
 # Support custom results dir pour exécution parallèle (BIG_EXPERIENCE)
 RESULTS_DIR = os.path.join(
     os.environ.get('CUSTOM_RESULTS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Résultats')),
-    'exp4'
+    'exp4_bis'
 )
 
 # Palette : bleu pour Normal, orange pour GradCAM
@@ -485,7 +485,7 @@ if __name__ == "__main__":
 
     strategies_to_run = [
         ('Normal',          NormalStrategy()),
-        ('GradCAM (λ=0.5)', GradCAMStrategy(lambda_gc=0.5)),
+        ('GradCAM (λ=0.1)', GradCAMStrategy(lambda_gc=0.1)),
     ]
 
     # ===== SCÉNARIO 1 : Biais standard (90/10) =====
@@ -533,7 +533,7 @@ if __name__ == "__main__":
     # Recréer les stratégies (les objets strategy ne sont pas réutilisables)
     radical_strategies = [
         ('Normal',          NormalStrategy()),
-        ('GradCAM (λ=0.5)', GradCAMStrategy(lambda_gc=0.5)),
+        ('GradCAM (λ=0.1)', GradCAMStrategy(lambda_gc=0.1)),
     ]
 
     (radical_histories, radical_durations, radical_bias_stats,

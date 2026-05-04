@@ -1,5 +1,5 @@
 """
-shape_generators.py — Génération des formes de base
+shape_generators.py - Génération des formes de base
 
 Contient la logique pour générer :
 - Cercles (avec détection de chevauchement)

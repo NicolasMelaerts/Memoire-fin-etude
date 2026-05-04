@@ -1,5 +1,5 @@
 """
-strategies.py — Stratégies d'entraînement pour la comparaison.
+strategies.py - Stratégies d'entraînement pour la comparaison.
 
 Chaque stratégie définit comment calculer la loss totale pendant l'entraînement.
 Toutes héritent de BaseStrategy et implémentent compute_loss().
@@ -80,7 +80,7 @@ class DoubleBackpropStrategy(BaseStrategy):
     Encourage le modèle à avoir des gradients d'entrée plus lisses.
     """
 
-    def __init__(self, lambda_bp=100.0):
+    def __init__(self, lambda_bp=50.0):
         super().__init__(f"Double BP (λ={lambda_bp})")
         self.lambda_bp = lambda_bp
 
@@ -140,7 +140,7 @@ def compute_gradcam_differentiable(model, image_batch, target_classes):
     """
     B = image_batch.size(0)
 
-    # 1. Forward jusqu'à conv3 (avant pool)  — avec create_graph pour double dérivée
+    # 1. Forward jusqu'à conv3 (avant pool)  - avec create_graph pour double dérivée
     feat  = model.forward_features(image_batch)          # [B, 64, 32, 32]
     feat.retain_grad()                                    # on veut ∂loss/∂feat
 
@@ -219,8 +219,8 @@ class GradCAMStrategy(BaseStrategy):
         Loss de localisation : 1 - similarité cosinus entre les cartes aplaties.
 
         Args:
-            cam_batch: [B, 1, 128, 128] — cartes GradCAM différentiables
-            supervision_batch: [B, 1, 128, 128] — heatmaps de supervision
+            cam_batch: [B, 1, 128, 128] - cartes GradCAM différentiables
+            supervision_batch: [B, 1, 128, 128] - heatmaps de supervision
 
         Returns:
             scalar tensor (différentiable)
@@ -246,7 +246,7 @@ class GradCAMStrategy(BaseStrategy):
 
 class GAINStrategy(BaseStrategy):
     """
-    Stratégie GAIN (Guided Attention Inference Network) — Li et al., CVPR 2018.
+    Stratégie GAIN (Guided Attention Inference Network) - Li et al., CVPR 2018.
 
     Implémentation fidèle à la variante self-guidée (Section 3.1 de l'article).
 
@@ -274,7 +274,7 @@ class GAINStrategy(BaseStrategy):
         B = images.size(0)
 
         # ------------------------------------------------------------------
-        # Étape 1 & 2 — Carte d'attention A^c par Grad-CAM (éq. 1–2)
+        # Étape 1 & 2 - Carte d'attention A^c par Grad-CAM (éq. 1–2)
         # compute_gradcam_differentiable retourne A^c normalisée dans [0,1]
         # et les logits du forward classique (stream S_cl).
         # ------------------------------------------------------------------
@@ -283,12 +283,12 @@ class GAINStrategy(BaseStrategy):
         # logits: [B, 2]
 
         # ------------------------------------------------------------------
-        # Étape 3 — Perte de classification L_cl  (éq. 6)
+        # Étape 3 - Perte de classification L_cl  (éq. 6)
         # ------------------------------------------------------------------
         L_cl = self.ce_criterion(logits, labels)
 
         # ------------------------------------------------------------------
-        # Étape 4 — Masque soft T(A^c) différentiable (éq. 4)
+        # Étape 4 - Masque soft T(A^c) différentiable (éq. 4)
         #
         #   T(A^c) = sigmoid(-ω * (A^c - σ))
         #          = 1 / (1 + exp(-ω * (A^c - σ)))
@@ -299,13 +299,13 @@ class GAINStrategy(BaseStrategy):
         T_Ac = torch.sigmoid(self.omega * (A_c - self.sigma))  # [B, 1, 128, 128]
 
         # ------------------------------------------------------------------
-        # Étape 5 — Image masquée I^{*c} = I - T(A^c) ⊙ I  (éq. 3)
+        # Étape 5 - Image masquée I^{*c} = I - T(A^c) ⊙ I  (éq. 3)
         # Les régions fortement activées sont soustraites (mises à ~0).
         # ------------------------------------------------------------------
         I_masked = images - T_Ac * images  # [B, 1, 128, 128]
 
         # ------------------------------------------------------------------
-        # Étape 6 — Score de la classe cible sur l'image masquée (éq. 5)
+        # Étape 6 - Score de la classe cible sur l'image masquée (éq. 5)
         #
         #   L_am = (1/n) Σ_c  s^c(I^{*c})
         #
@@ -358,7 +358,7 @@ class RRRStrategy(BaseStrategy):
     des régions indiquées par les heatmaps de supervision.
     """
 
-    def __init__(self, lambda_rrr=10.0):
+    def __init__(self, lambda_rrr=1.0):
         super().__init__(f"RRR (λ={lambda_rrr})")
         self.lambda_rrr = lambda_rrr
 

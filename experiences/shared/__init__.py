@@ -1,5 +1,5 @@
 """
-shared — Code partagé entre toutes les expériences.
+shared - Code partagé entre toutes les expériences.
 
 Ce package contient :
   - model.py      : architecture du réseau SimpleCNN et fonctions GradCAM

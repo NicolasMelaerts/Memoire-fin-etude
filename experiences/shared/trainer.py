@@ -1,5 +1,5 @@
 """
-trainer.py — Trainer unifié pour toutes les stratégies d'entraînement.
+trainer.py - Trainer unifié pour toutes les stratégies d'entraînement.
 
 Simplifie l'entraînement en centralisant la boucle train/validation.
 Chaque stratégie définit uniquement comment calculer sa loss.

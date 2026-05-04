@@ -1,11 +1,11 @@
 """
-run_exp1.py — Expérience 1 : Comparaison des stratégies d'entraînement
+run_exp1.py - Expérience 1 : Comparaison des stratégies d'entraînement
 
 Compare 5 approches :
   - Normal (baseline)
   - Double Backpropagation (λ = 50)
   - GradCAM-Guided (λ = 0.1)
-  - GAIN (λ = 0.1)
+  - GAIN (λ = 1.0)
   - RRR - Right for the Right Reasons (λ = 1.0)
 
 Usage :
@@ -147,7 +147,7 @@ if __name__ == "__main__":
         ('Normal',          NormalStrategy()),
         ('Double BP (λ=50.0)', DoubleBackpropStrategy(lambda_bp=50.0)),
         ('GradCAM (λ=0.1)', GradCAMStrategy(lambda_gc=0.1)),
-        ('GAIN (λ=0.1)',    GAINStrategy(lambda_gain=0.1)),
+        ('GAIN (λ=1.0)',    GAINStrategy(lambda_gain=1.0)),
         ('RRR (λ=1.0)',     RRRStrategy(lambda_rrr=1.0)),
     ]
 
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         histories[name] = h
         models_out[name] = m
         durations[name] = d
-        print(f"  ✓ {d:.1f}s — test_acc={h['test_acc'][-1]:.1f}%\n")
+        print(f"  ✓ {d:.1f}s - test_acc={h['test_acc'][-1]:.1f}%\n")
 
     # ---- Génération des visuels ----
     print("▶ Génération des visuels...")

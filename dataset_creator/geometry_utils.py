@@ -1,5 +1,5 @@
 """
-geometry_utils.py — Utilitaires géométriques pour la génération de dataset
+geometry_utils.py - Utilitaires géométriques pour la génération de dataset
 
 Contient toutes les fonctions de calcul géométrique :
 - Détection de points dans un cercle

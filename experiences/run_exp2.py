@@ -1,5 +1,5 @@
 """
-run_exp2.py — Expérience 2 : Influence de la taille du dataset
+run_exp2.py - Expérience 2 : Influence de la taille du dataset
 
 Compare Normal vs GradCAM-Guided avec différentes tailles de dataset :
   - 750, 500, 250, 200, 150, 100, 50, 25 images d'entraînement
@@ -134,7 +134,7 @@ if __name__ == "__main__":
         models_out[name] = m
         durations[name] = d
         normal_acc_by_size[size] = h['test_acc'][-1]
-        print(f"  ✓ {d:.1f}s — test_acc={h['test_acc'][-1]:.1f}%\n")
+        print(f"  ✓ {d:.1f}s - test_acc={h['test_acc'][-1]:.1f}%\n")
 
     # GradCAM-Guided adaptatif : recherche de λ
     # On teste plusieurs valeurs de λ et on l'augmente s'il ne bat pas le Normal.

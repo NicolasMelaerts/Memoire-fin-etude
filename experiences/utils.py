@@ -1,5 +1,5 @@
 """
-utils.py — Utilitaires partagés entre les expériences.
+utils.py - Utilitaires partagés entre les expériences.
 
 Contient les fonctions communes pour :
   - Reproductibilité (set_seed)

@@ -1,5 +1,5 @@
 """
-dataset_generator.py — Génère un dataset synthétique Inside/Outside
+dataset_generator.py - Génère un dataset synthétique Inside/Outside
 
 Classes :
   - Positive : Triangle DANS un cercle (heatmap générée)

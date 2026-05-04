@@ -1,5 +1,5 @@
 """
-heatmap_generator.py — Génération de heatmaps de style GradCAM
+heatmap_generator.py - Génération de heatmaps de style GradCAM
 
 Contient la logique de génération des heatmaps pour les échantillons positifs :
 - Triangle = zone la plus importante (rouge)

@@ -1,5 +1,5 @@
 """
-exp_oiseaux.py — Expérience CUB-200-2011 : Normal vs GradCAM-Guided
+exp_oiseaux.py - Expérience CUB-200-2011 : Normal vs GradCAM-Guided
 
 Dataset réel : Caltech-UCSD Birds 200 (11 788 images, 200 espèces)
 Supervision  : masques de segmentation binaires (oiseau vs fond)
@@ -66,7 +66,7 @@ def set_seed(seed):
 
 
 # ---------------------------------------------------------------------------
-# Modèle — SimpleCNN adapté RGB / N classes
+# Modèle - SimpleCNN adapté RGB / N classes
 # (même architecture que shared/model.py, 1→3 canaux, 2→200 sorties)
 # ---------------------------------------------------------------------------
 class SimpleCNN_RGB(nn.Module):
@@ -107,7 +107,7 @@ class SimpleCNN_RGB(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# Modèle — ResNet18 pré-entraîné (Transfer Learning)
+# Modèle - ResNet18 pré-entraîné (Transfer Learning)
 # ---------------------------------------------------------------------------
 class ResNet18_CUB(nn.Module):
     """ResNet18 pré-entraîné sur ImageNet, fine-tuné pour N classes."""
@@ -662,7 +662,7 @@ if __name__ == '__main__':
                 'iou_scores': iou_scores,
                 'per_class_accs': {k: v.tolist() for k, v in per_class_accs.items()}
             }, f, indent=2)
-        print(f'  ✓ {d:.0f}s — test_acc={h["test_acc"][-1]:.1f}%\n')
+        print(f'  ✓ {d:.0f}s - test_acc={h["test_acc"][-1]:.1f}%\n')
 
     # IoU GradCAM ↔ Segmentation
     for name, mode, _ in configs:
@@ -681,7 +681,7 @@ if __name__ == '__main__':
     # Exemples GradCAM
     print('▶ Génération des exemples GradCAM...')
     if not models_out:
-        print('  [!] Aucun modèle entraîné dans cette session — galerie vide.')
+        print('  [!] Aucun modèle entraîné dans cette session - galerie vide.')
         examples = []
     else:
         examples = generate_examples(models_out, test_ds, classes, RESULTS_DIR, n=60)

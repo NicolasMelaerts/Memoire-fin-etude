@@ -1,5 +1,5 @@
 """
-config.py — Configuration du générateur de dataset
+config.py - Configuration du générateur de dataset
 
 Modifiez ces paramètres pour personnaliser la génération du dataset.
 """

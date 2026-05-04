@@ -1,10 +1,10 @@
 """
-run_exp4.py — Expérience 4 : Robustesse face au biais de flèche
+run_exp4.py - Expérience 4 : Robustesse face au biais de flèche
 
 Protocole :
   - Train  : 90 % des positifs ont une flèche, 10 % des négatifs ont une flèche
              → la flèche est un fort prédicteur de la classe POSITIVE
-  - Test   : Distribution INVERSÉE — 10 % des positifs ont une flèche,
+  - Test   : Distribution INVERSÉE - 10 % des positifs ont une flèche,
              90 % des négatifs ont une flèche
              → la flèche prédit maintenant la classe NÉGATIVE
 
@@ -12,8 +12,9 @@ Objectif : évaluer si le modèle Normal exploite la flèche comme raccourci
            et si la supervision GradCAM le rend plus robuste à ce biais.
 
 Modèles comparés :
-  - Normal   : CrossEntropy pure (peut apprendre le raccourci "flèche → positif")
-  - GradCAM  : Guidé pour regarder le cercle/triangle (λ = 0.1)
+  - Normal           : CrossEntropy pure (peut apprendre le raccourci "flèche → positif")
+  - GradCAM (λ=0.1)  : Guidé faiblement pour regarder le cercle/triangle
+  - GradCAM (λ=0.5)  : Guidé fortement pour regarder le cercle/triangle
 
 Usage :
     python run_exp4.py [--clean] [--force]
@@ -136,8 +137,8 @@ RESULTS_DIR = os.path.join(
     'exp4'
 )
 
-# Palette : bleu pour Normal, orange pour GradCAM
-PALETTE = ['#2196F3', '#FF9800']
+# Palette : bleu pour Normal, orange pour GradCAM λ=0.1, violet pour GradCAM λ=0.5
+PALETTE = ['#2196F3', '#FF9800', '#9C27B0']
 
 
 def get_color_and_style(name, idx):
@@ -147,7 +148,7 @@ def get_color_and_style(name, idx):
 
 
 # ===========================================================================
-# Dataset biaisé — Distribution shift entre train et test
+# Dataset biaisé - Distribution shift entre train et test
 # ===========================================================================
 
 def get_biased_dataloaders(seed=SEED):
@@ -319,7 +320,7 @@ def _compute_bias_stats(df, train_indices, test_indices):
 
 
 # ===========================================================================
-# Sauvegarde data.js (format exp4 — incluant bias_stats)
+# Sauvegarde data.js (format exp4 - incluant bias_stats)
 # ===========================================================================
 
 def save_data_js_exp4(histories, durations, examples, bias_stats, results_dir, epochs,
@@ -423,10 +424,10 @@ def run_scenario(scenario_name, get_loaders_fn, strategies, df_ref,
         if bias_stats:
             tr = bias_stats['train']
             te = bias_stats['test']
-            print(f"  [i] Train — positifs : {tr['pos_arrow_pct']}% flèche "
-                  f"| négatifs : {tr['neg_arrow_pct']}% flèche")
-            print(f"  [i] Test  — positifs : {te['pos_arrow_pct']}% flèche "
-                  f"| négatifs : {te['neg_arrow_pct']}% flèche")
+            print(f"  [i] Train - positifs : {tr['pos_arrow_pct']}% flèche "
+                  f"- négatifs : {tr['neg_arrow_pct']}% flèche")
+            print(f"  [i] Test - positifs : {te['pos_arrow_pct']}% flèche "
+                  f"- négatifs : {te['neg_arrow_pct']}% flèche")
 
         trainer = Trainer(strategy, verbose=True)
         h, m, d = trainer.run(train_loader, test_loader)
@@ -439,7 +440,7 @@ def run_scenario(scenario_name, get_loaders_fn, strategies, df_ref,
         print(f"  → Calcul de la matrice de confusion...")
         cm = compute_confusion_matrix(m, test_loader, DEVICE, df_ref)
         confusion_matrices[name] = cm
-        print(f"  ✓ {d:.1f}s — test_acc={h['test_acc'][-1]:.1f}%  "
+        print(f"  ✓ {d:.1f}s - test_acc={h['test_acc'][-1]:.1f}%  "
               f"F1={cm['f1']:.3f}  "
               f"Acc flèche={cm['arrow_stats']['with_arrow']['acc']:.1%}  "
               f"Acc sans flèche={cm['arrow_stats']['without_arrow']['acc']:.1%}\n")
@@ -485,7 +486,11 @@ if __name__ == "__main__":
 
     strategies_to_run = [
         ('Normal',          NormalStrategy()),
+        ('GradCAM (λ=0.1)', GradCAMStrategy(lambda_gc=0.1)),
+        ('GradCAM (λ=0.25)', GradCAMStrategy(lambda_gc=0.25)),
         ('GradCAM (λ=0.5)', GradCAMStrategy(lambda_gc=0.5)),
+        ('GradCAM (λ=0.75)', GradCAMStrategy(lambda_gc=0.75)),
+        ('GradCAM (λ=1)', GradCAMStrategy(lambda_gc=1))
     ]
 
     # ===== SCÉNARIO 1 : Biais standard (90/10) =====
@@ -533,7 +538,11 @@ if __name__ == "__main__":
     # Recréer les stratégies (les objets strategy ne sont pas réutilisables)
     radical_strategies = [
         ('Normal',          NormalStrategy()),
+        ('GradCAM (λ=0.1)', GradCAMStrategy(lambda_gc=0.1)),
+        ('GradCAM (λ=0.25)', GradCAMStrategy(lambda_gc=0.25)),
         ('GradCAM (λ=0.5)', GradCAMStrategy(lambda_gc=0.5)),
+        ('GradCAM (λ=0.75)', GradCAMStrategy(lambda_gc=0.75)),
+        ('GradCAM (λ=1)', GradCAMStrategy(lambda_gc=1))
     ]
 
     (radical_histories, radical_durations, radical_bias_stats,
@@ -566,7 +575,7 @@ if __name__ == "__main__":
         histories,
         os.path.join(RESULTS_DIR, 'comparison_curves.png'),
         epochs=EPOCHS,
-        title="Expérience 4 : Normal vs GradCAM — Biais 90/10",
+        title="Expérience 4 : Normal vs GradCAM - Biais 90/10",
         get_color_fn=get_color_and_style,
         metrics=metrics_config
     )
@@ -576,12 +585,12 @@ if __name__ == "__main__":
         radical_histories,
         os.path.join(RESULTS_DIR, 'comparison_curves_radical.png'),
         epochs=EPOCHS,
-        title="Expérience 4 : Normal vs GradCAM — Biais radical 100/0",
+        title="Expérience 4 : Normal vs GradCAM - Biais radical 100/0",
         get_color_fn=get_color_and_style,
         metrics=metrics_config
     )
 
-    # Exemples GradCAM — scénario standard
+    # Exemples GradCAM - scénario standard
     # Mix positifs + négatifs : on shuffle TOUS les indices du test set
     rng_std = np.random.RandomState(SEED)
     all_idx_std = np.arange(len(test_ds))
@@ -596,7 +605,7 @@ if __name__ == "__main__":
         row = df_ref[df_ref['filename'] == img_name]
         ex['has_arrow'] = bool(row['has_arrow'].values[0]) if len(row) > 0 else False
 
-    # Exemples GradCAM — scénario radical (même logique)
+    # Exemples GradCAM - scénario radical (même logique)
     rng_rad = np.random.RandomState(SEED + 1000)
     all_idx_rad = np.arange(len(radical_test_ds))
     rng_rad.shuffle(all_idx_rad)
@@ -645,15 +654,15 @@ if __name__ == "__main__":
         print("\n  Distribution flèches (90/10) :")
         tr = bias_stats['train']
         te = bias_stats['test']
-        print(f"    Train  — pos: {tr['pos_arrow_pct']}% flèche | neg: {tr['neg_arrow_pct']}% flèche")
-        print(f"    Test   — pos: {te['pos_arrow_pct']}% flèche | neg: {te['neg_arrow_pct']}% flèche")
+        print(f"    Train  - pos: {tr['pos_arrow_pct']}% flèche - neg: {tr['neg_arrow_pct']}% flèche")
+        print(f"    Test   - pos: {te['pos_arrow_pct']}% flèche - neg: {te['neg_arrow_pct']}% flèche")
 
     if radical_bias_stats:
         print("\n  Distribution flèches (100/0) :")
         tr = radical_bias_stats['train']
         te = radical_bias_stats['test']
-        print(f"    Train  — pos: {tr['pos_arrow_pct']}% flèche | neg: {tr['neg_arrow_pct']}% flèche")
-        print(f"    Test   — pos: {te['pos_arrow_pct']}% flèche | neg: {te['neg_arrow_pct']}% flèche")
+        print(f"    Train  - pos: {tr['pos_arrow_pct']}% flèche | neg: {tr['neg_arrow_pct']}% flèche")
+        print(f"    Test   - pos: {te['pos_arrow_pct']}% flèche | neg: {te['neg_arrow_pct']}% flèche")
 
     print()
     print("  Pour afficher les résultats :")

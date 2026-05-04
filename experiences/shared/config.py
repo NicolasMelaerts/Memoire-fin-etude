@@ -1,5 +1,5 @@
 """
-config.py — Hyperparamètres partagés pour l'expérience de comparaison.
+config.py - Hyperparamètres partagés pour l'expérience de comparaison.
 """
 import os
 import torch

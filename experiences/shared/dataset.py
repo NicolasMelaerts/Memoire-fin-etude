@@ -1,5 +1,5 @@
 """
-dataset.py — Dataset et DataLoaders partagés pour les 3 expériences.
+dataset.py - Dataset et DataLoaders partagés pour les 3 expériences.
 
 Le ShapeDataset charge :
   - l'image originale (grayscale → tensor)

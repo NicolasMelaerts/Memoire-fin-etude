@@ -1,5 +1,5 @@
 """
-run_exp3.py — Expérience 3 : Métriques détaillées Normal vs GradCAM
+run_exp3.py - Expérience 3 : Métriques détaillées Normal vs GradCAM
 
 Compare Normal vs GradCAM-Guided (λ=0.1) avec 750 images d'entraînement.
 Calcule des métriques détaillées :
@@ -283,7 +283,7 @@ if __name__ == "__main__":
             json.dump(all_metrics, f, indent=2)
 
         iou_str = f"{detailed['iou']:.3f}±{detailed['iou_std']:.3f}" if detailed['iou'] is not None else "N/A"
-        print(f"  ✓ {duration:.1f}s — Accuracy={detailed['accuracy']:.1%} F1={detailed['f1']:.3f} IoU={iou_str}\n")
+        print(f"  ✓ {duration:.1f}s - Accuracy={detailed['accuracy']:.1%} F1={detailed['f1']:.3f} IoU={iou_str}\n")
     else:
         print(f"⏭️  {model_name} : déjà entraîné (utilisez --force pour réentraîner)\n")
 
@@ -317,7 +317,7 @@ if __name__ == "__main__":
             json.dump(all_metrics, f, indent=2)
 
         iou_str = f"{detailed['iou']:.3f}±{detailed['iou_std']:.3f}" if detailed['iou'] is not None else "N/A"
-        print(f"  ✓ {duration:.1f}s — Accuracy={detailed['accuracy']:.1%} F1={detailed['f1']:.3f} IoU={iou_str}\n")
+        print(f"  ✓ {duration:.1f}s - Accuracy={detailed['accuracy']:.1%} F1={detailed['f1']:.3f} IoU={iou_str}\n")
     else:
         print(f"⏭️  {model_name} : déjà entraîné (utilisez --force pour réentraîner)\n")
 

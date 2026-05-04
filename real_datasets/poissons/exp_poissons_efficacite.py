@@ -1,12 +1,13 @@
 """
-exp_poissons_efficacite.py — Normal & GradCAM avec moins de données (suite de exp_poissons.py)
+exp_poissons_efficacite.py - Normal & GradCAM avec moins de données (suite de exp_poissons.py)
 
-Réutilise les résultats déjà calculés dans exp_poissons.py :
-  - Normal  100%  → chargé depuis results/metrics.json
-  - GradCAM 100%  → chargé depuis results/metrics.json
+Charge depuis exp_poissons.py :
+  - Normal 100%
+  - GradCAM (λ=0.1) 100%
 
-Entraîne Normal et GradCAM avec moins d'images :
-  90%, 80%, 70%, 60%, 50%, 40%, 30%, 20%, 10%
+Entraîne Normal et GradCAM avec 3 valeurs de λ (0.1, 0.25, 0.5) :
+  - À 100% : GradCAM (λ=0.25) et GradCAM (λ=0.5) (baselines complémentaires)
+  - À 90%, 80%, 70%, 60%, 50%, 40%, 30%, 20%, 10% : Normal + 3 GradCAM (un par λ)
   (même split exact que exp_poissons.py : DATASET_FRAC=0.25)
 
 Hypothèse : la supervision spatiale GradCAM permet d'atteindre les mêmes
@@ -43,14 +44,13 @@ RESULTS1_DIR = os.path.join(BASE_DIR, 'results')              # résultats exp_p
 RESULTS_DIR  = os.path.join(BASE_DIR, 'results_efficacite')
 
 # ---------------------------------------------------------------------------
-# Hyperparamètres — identiques à run_fish.py
+# Hyperparamètres - identiques à run_fish.py
 # ---------------------------------------------------------------------------
 IMG_SIZE     = 128
 BATCH_SIZE   = 32
 EPOCHS       = 15
 LR           = 1e-3
 SEED         = 42
-LAMBDA_GC    = 0.5
 TRAIN_RATIO  = 0.8
 DATASET_FRAC = 0.25   # même valeur que run_fish.py → même split
 DEVICE       = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -61,8 +61,11 @@ CLASSES = sorted([
 ]) if os.path.isdir(FISH_DIR) else []
 N_CLASSES = len(CLASSES)
 
-# Fractions à tester (de 90% à 10%, par pas de 10%)
-GC_FRACTIONS = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+# Valeurs de λ pour GradCAM (entraînées à chaque fraction)
+GC_LAMBDAS = [0.1, 0.25, 0.5]
+
+# Fractions à tester (de 80% à 20%, par pas de 20%)
+GC_FRACTIONS = [0.8, 0.6, 0.4, 0.2]
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +83,7 @@ def set_seed(seed):
 
 
 # ---------------------------------------------------------------------------
-# Modèle — identique à run_fish.py
+# Modèle - identique à run_fish.py
 # ---------------------------------------------------------------------------
 class SimpleCNN_RGB(nn.Module):
     def __init__(self, n_classes=N_CLASSES):
@@ -117,7 +120,7 @@ class SimpleCNN_RGB(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# Dataset — identique à run_fish.py
+# Dataset - identique à run_fish.py
 # ---------------------------------------------------------------------------
 class FishDataset(Dataset):
     def __init__(self, samples, transform=None):
@@ -278,7 +281,7 @@ def train_epoch_normal(model, loader, optimizer):
     return total_loss / len(loader), 100. * total_correct / total
 
 
-def train_epoch_gradcam(model, loader, optimizer):
+def train_epoch_gradcam(model, loader, optimizer, lambda_gc):
     model.train()
     total_loss = total_ce = total_correct = total = 0
     for images, labels, heatmaps, _ in loader:
@@ -288,7 +291,7 @@ def train_epoch_gradcam(model, loader, optimizer):
         cam, logits = compute_gradcam_differentiable(model, images, labels)
         ce   = F.cross_entropy(logits, labels)
         loc  = localisation_loss(cam, heatmaps)
-        loss = ce + LAMBDA_GC * loc
+        loss = ce + lambda_gc * loc
         loss.backward()
         optimizer.step()
         total_loss    += loss.item()
@@ -326,8 +329,8 @@ def compute_mean_iou(model, test_ds, n_samples=200):
     return float(np.mean(ious)) if ious else 0.0
 
 
-def train_model(name, mode, train_loader, test_loader, epochs, verbose=True):
-    """mode: 'normal' ou 'gradcam'"""
+def train_model(name, mode, train_loader, test_loader, epochs, lambda_gc=None, verbose=True):
+    """mode: 'normal' ou 'gradcam' (lambda_gc obligatoire si mode='gradcam')"""
     set_seed(SEED)
     model     = SimpleCNN_RGB(n_classes=N_CLASSES).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-4)
@@ -342,7 +345,7 @@ def train_model(name, mode, train_loader, test_loader, epochs, verbose=True):
             tr_loss, tr_acc = train_epoch_normal(model, train_loader, optimizer)
             tr_ce = tr_loss
         else:
-            tr_loss, tr_ce, tr_acc = train_epoch_gradcam(model, train_loader, optimizer)
+            tr_loss, tr_ce, tr_acc = train_epoch_gradcam(model, train_loader, optimizer, lambda_gc)
         te_loss, te_acc = eval_epoch(model, test_loader)
         scheduler.step()
 
@@ -365,8 +368,13 @@ def train_model(name, mode, train_loader, test_loader, epochs, verbose=True):
 # ---------------------------------------------------------------------------
 def plot_curves(all_histories, all_configs, epochs, output_path):
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-    fig.suptitle('Normal vs GradCAM avec moins de données', fontsize=13, fontweight='bold')
-    for name, mode, frac, n_train in all_configs:
+    fig.suptitle('Normal vs GradCAM (λ=0.1, 0.25, 0.5) avec moins de données',
+                 fontsize=13, fontweight='bold')
+
+    # Couleur de base par valeur de λ : λ=0.1 jaune, λ=0.25 orange, λ=0.5 violet
+    GC_BASE_RGB = {0.1: (255, 193, 7), 0.25: (255, 87, 34), 0.5: (156, 39, 176)}
+
+    for name, mode, frac, n_train, lam in all_configs:
         h = all_histories.get(name)
         if h is None:
             continue
@@ -374,7 +382,9 @@ def plot_curves(all_histories, all_configs, epochs, output_path):
         if mode == 'normal' and frac == 1.0:
             color, ls, lw, zorder = '#2196F3', '-',  2.5, 10
         elif mode == 'gradcam' and frac == 1.0:
-            color, ls, lw, zorder = '#FF9800', '-', 2.5, 9
+            r0, g0, b0 = GC_BASE_RGB.get(lam, (255, 152, 0))
+            color = f'#{r0:02x}{g0:02x}{b0:02x}'
+            ls, lw, zorder = '-', 2.5, 9
         elif mode == 'normal':
             # dégradé du bleu clair vers le bleu foncé selon la fraction
             t     = 1.0 - frac
@@ -384,11 +394,13 @@ def plot_curves(all_histories, all_configs, epochs, output_path):
             color = f'#{r:02x}{g:02x}{b:02x}'
             ls, lw, zorder = '-', 1.2, 4
         else:
-            # dégradé du jaune vers le rouge selon la fraction
-            t     = 1.0 - frac
-            r     = int(255)
-            g     = int(152 * (1 - t))
-            color = f'#{r:02x}{g:02x}00'
+            # dégradé selon la fraction, autour de la couleur de base de λ
+            r0, g0, b0 = GC_BASE_RGB.get(lam, (255, 152, 0))
+            t = 1.0 - frac
+            r = int(r0 * (1 - 0.4 * t))
+            g = int(g0 * (1 - 0.4 * t))
+            b = int(b0 * (1 - 0.4 * t))
+            color = f'#{r:02x}{g:02x}{b:02x}'
             ls, lw, zorder = '--', 1.2, 5
 
         label = f"{name} (n={n_train})"
@@ -414,8 +426,9 @@ def plot_curves(all_histories, all_configs, epochs, output_path):
 def save_data_js(all_histories, all_durations, all_iou, all_configs,
                  epochs, n_train_full, n_test, results_dir):
     configs_json = [
-        {'name': name, 'mode': mode, 'frac': frac, 'n_train': n_train}
-        for name, mode, frac, n_train in all_configs
+        {'name': name, 'mode': mode, 'frac': frac,
+         'n_train': n_train, 'lambda_gc': lam}
+        for name, mode, frac, n_train, lam in all_configs
     ]
     data = {
         'epochs':    list(range(1, epochs + 1)),
@@ -449,9 +462,10 @@ if __name__ == '__main__':
     print('=' * 70)
     print('  Fish Dataset : Normal vs GradCAM avec moins de données')
     print('=' * 70)
-    print(f'  Device  : {DEVICE}')
-    print(f'  Epochs  : {EPOCHS}')
-    print(f'  Fractions Normal & GradCAM : {[f"{int(f*100)}%" for f in GC_FRACTIONS]}')
+    print(f'  Device     : {DEVICE}')
+    print(f'  Epochs     : {EPOCHS}')
+    print(f'  λ GradCAM  : {GC_LAMBDAS}')
+    print(f'  Fractions  : {[f"{int(f*100)}%" for f in GC_FRACTIONS]}')
     print()
 
     if args.clean and os.path.exists(RESULTS_DIR):
@@ -475,7 +489,7 @@ if __name__ == '__main__':
         iou1       = saved.get('iou_scores', {})
         print(f'  [✓] Chargé depuis results/metrics.json : {list(histories1.keys())}')
     else:
-        print('  [!] results/metrics.json introuvable — lancez exp_poissons.py d\'abord.')
+        print('  [!] results/metrics.json introuvable - lancez exp_poissons.py d\'abord.')
 
     # ------------------------------------------------------------------
     # 2. Cache propre à exp_poissons_efficacite.py
@@ -492,6 +506,18 @@ if __name__ == '__main__':
             print(f'  [✓] Cache local : {list(histories2.keys())}')
         except json.JSONDecodeError:
             print('  [!] metrics2.json corrompu, ignoré')
+
+    # Migration : ancien nommage 'GradCAM X%' (entraîné à λ=0.5) → 'GradCAM (λ=0.5) X%'
+    def _migrate(d):
+        for old in list(d.keys()):
+            if old.startswith('GradCAM ') and 'λ' not in old:
+                suffix = old[len('GradCAM '):]
+                d[f'GradCAM (λ=0.5) {suffix}'] = d.pop(old)
+    migrated_before = set(histories2)
+    _migrate(histories2); _migrate(durations2); _migrate(iou2)
+    migrated_keys = set(histories2) - migrated_before
+    if migrated_keys:
+        print(f'  [↻] Migré ancien nommage λ=0.5 : {sorted(migrated_keys)}')
     print()
 
     # ------------------------------------------------------------------
@@ -505,20 +531,21 @@ if __name__ == '__main__':
     print()
 
     # ------------------------------------------------------------------
-    # 4. Configs complètes = résultats run_fish.py + nouvelles fractions
+    # 4. Configs complètes : Normal + GradCAM (λ=0.1, 0.25, 0.5) à toutes les fractions
     # ------------------------------------------------------------------
-    # Noms depuis run_fish.py
     NAME_NORMAL = 'Normal'
-    NAME_GC100  = 'GradCAM (λ=0.5)'
 
-    all_configs = [
-        (NAME_NORMAL, 'normal',  1.0, n_train_full),
-        (NAME_GC100,  'gradcam', 1.0, n_train_full),
-    ]
+    def gc_name(lam, frac):
+        return f'GradCAM (λ={lam})' if frac >= 1.0 else f'GradCAM (λ={lam}) {int(frac*100)}%'
+
+    all_configs = [(NAME_NORMAL, 'normal', 1.0, n_train_full, None)]
+    for lam in GC_LAMBDAS:
+        all_configs.append((gc_name(lam, 1.0), 'gradcam', 1.0, n_train_full, lam))
     for frac in GC_FRACTIONS:
         n = max(1, int(n_train_full * frac))
-        all_configs.append((f'Normal {int(frac*100)}%',  'normal',  frac, n))
-        all_configs.append((f'GradCAM {int(frac*100)}%', 'gradcam', frac, n))
+        all_configs.append((f'Normal {int(frac*100)}%', 'normal', frac, n, None))
+        for lam in GC_LAMBDAS:
+            all_configs.append((gc_name(lam, frac), 'gradcam', frac, n, lam))
 
     # Fusionner les historiques
     all_histories = {**histories1, **histories2}
@@ -530,20 +557,21 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------
     models_out = {}
 
-    for name, mode, frac, n_train in all_configs:
+    for name, mode, frac, n_train, lam in all_configs:
         # Sauter les modèles déjà disponibles (run_fish.py ou cache)
         if name in all_histories:
             print(f'  [⏭]  {name} : déjà disponible')
             continue
-        # Sauter Normal et GradCAM 100% s'ils ne sont pas dans le cache
-        # (ils doivent venir de run_fish.py)
-        if name in (NAME_NORMAL, NAME_GC100):
-            print(f'  [!]  {name} introuvable — lancez exp_poissons.py d\'abord.')
+        # Normal 100% doit venir de exp_poissons.py
+        if name == NAME_NORMAL:
+            print(f'  [!]  {name} introuvable - lancez exp_poissons.py d\'abord.')
             continue
 
         train_loader, test_loader, test_ds = make_loaders(train_samples, test_samples, frac)
-        print(f'▶ Entraînement {name}  ({n_train} images train)...')
-        model, h, d = train_model(name, mode, train_loader, test_loader, EPOCHS)
+        suffix = f' λ={lam}' if mode == 'gradcam' else ''
+        print(f'▶ Entraînement {name}  ({n_train} images train{suffix})...')
+        model, h, d = train_model(name, mode, train_loader, test_loader, EPOCHS,
+                                  lambda_gc=lam)
         all_histories[name] = h
         all_durations[name] = d
         models_out[name]    = (model, test_ds)
@@ -554,13 +582,13 @@ if __name__ == '__main__':
         with open(metrics2_path, 'w') as f:
             json.dump({'histories': histories2, 'durations': durations2,
                        'iou_scores': iou2}, f, indent=2)
-        print(f'  ✓ {d:.0f}s — test_acc={h["test_acc"][-1]:.1f}%\n')
+        print(f'  ✓ {d:.0f}s - test_acc={h["test_acc"][-1]:.1f}%\n')
 
     # ------------------------------------------------------------------
     # 6. IoU pour les nouveaux modèles seulement
     # ------------------------------------------------------------------
-    for name, mode, frac, n_train in all_configs:
-        if name in (NAME_NORMAL, NAME_GC100) and name in all_iou:
+    for name, mode, frac, n_train, lam in all_configs:
+        if name == NAME_NORMAL and name in all_iou:
             continue   # IoU déjà dans iou1
         if name not in all_iou:
             if name in models_out:
@@ -590,32 +618,33 @@ if __name__ == '__main__':
     print('  RÉSULTATS FINAUX')
     print('=' * 70)
     baseline_acc = all_histories.get(NAME_NORMAL, {}).get('test_acc', [0])[-1]
-    print(f'  {"Modèle":<22} {"n_train":>8}  {"test_acc":>9}  {"vs Normal 100%":>14}  {"IoU":>6}')
-    print(f'  {"-"*22}  {"-"*8}  {"-"*9}  {"-"*14}  {"-"*6}')
-    for name, mode, frac, n_train in all_configs:
+    print(f'  {"Modèle":<28} {"n_train":>8}  {"test_acc":>9}  {"vs Normal 100%":>14}  {"IoU":>6}')
+    print(f'  {"-"*28}  {"-"*8}  {"-"*9}  {"-"*14}  {"-"*6}')
+    for name, mode, frac, n_train, lam in all_configs:
         if name not in all_histories: continue
         h     = all_histories[name]
         acc   = h['test_acc'][-1]
         iou   = all_iou.get(name, 0)
         delta = acc - baseline_acc
         sign  = '+' if delta >= 0 else ''
-        print(f'  {name:<22}  {n_train:>8}  {acc:>8.1f}%  {sign}{delta:>+13.1f}%  {iou:>6.3f}')
+        print(f'  {name:<28}  {n_train:>8}  {acc:>8.1f}%  {sign}{delta:>+13.1f}%  {iou:>6.3f}')
 
-    # Trouver le point de croisement
-    crossover = None
-    for name, mode, frac, n_train in all_configs:
-        if mode == 'gradcam' and name in all_histories:
-            acc = all_histories[name]['test_acc'][-1]
-            if acc >= baseline_acc:
-                crossover = (name, frac, n_train, acc)
+    # Trouver le meilleur point de croisement par valeur de λ
     print()
-    if crossover:
-        name, frac, n_train, acc = crossover
-        print(f'  ★ GradCAM rattrape Normal 100% dès {int(frac*100)}% des données '
-              f'({n_train} images, acc={acc:.1f}% vs {baseline_acc:.1f}%)')
-    else:
-        print(f'  Aucun modèle GradCAM n\'atteint la baseline Normal 100% '
-              f'({baseline_acc:.1f}%) avec moins de données.')
+    for lam in GC_LAMBDAS:
+        crossover = None
+        for name, mode, frac, n_train, l in all_configs:
+            if mode == 'gradcam' and l == lam and name in all_histories:
+                acc = all_histories[name]['test_acc'][-1]
+                if acc >= baseline_acc:
+                    crossover = (name, frac, n_train, acc)
+        if crossover:
+            name, frac, n_train, acc = crossover
+            print(f'  ★ GradCAM (λ={lam}) rattrape Normal 100% dès {int(frac*100)}% des données '
+                  f'({n_train} images, acc={acc:.1f}% vs {baseline_acc:.1f}%)')
+        else:
+            print(f'  · GradCAM (λ={lam}) n\'atteint pas la baseline Normal 100% '
+                  f'({baseline_acc:.1f}%) sur les fractions testées.')
 
     print()
     print('  Double-cliquer sur : real_datasets/poissons/results_efficacite/fish_results_2.html')

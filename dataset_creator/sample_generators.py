@@ -1,5 +1,5 @@
 """
-sample_generators.py — Générateurs d'échantillons positifs et négatifs
+sample_generators.py - Générateurs d'échantillons positifs et négatifs
 
 Contient tous les générateurs de samples :
 - Positifs : triangle dans cercle (avec ou sans bruit)

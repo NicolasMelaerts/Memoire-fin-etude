@@ -1,5 +1,5 @@
 """
-model.py — SimpleCNN partagé + utilitaire GradCAM différentiable.
+model.py - SimpleCNN partagé + utilitaire GradCAM différentiable.
 
 GradCAMExtractor :
   Permet de calculer la carte GradCAM *dans le graphe de calcul* PyTorch,
@@ -67,7 +67,7 @@ def get_fresh_model(device):
 # ---------------------------------------------------------------------------
 # GradCAM pour la visualisation post-entraînement (images superposées dans les HTML).
 # Contrairement à compute_gradcam_differentiable dans strategies.py, cette version
-# détache le graphe de calcul et retourne un tableau NumPy — elle ne peut pas
+# détache le graphe de calcul et retourne un tableau NumPy - elle ne peut pas
 # être utilisée dans une loss.
 # ---------------------------------------------------------------------------
 

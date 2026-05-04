@@ -1,5 +1,5 @@
 """
-exp_poissons.py — Expérience Fish Dataset : Normal vs GradCAM-Guided
+exp_poissons.py - Expérience Fish Dataset : Normal vs GradCAM-Guided
 
 Dataset réel : A Large Scale Fish Dataset (5 espèces, 1000 images/classe)
 Supervision  : masques de segmentation binaires (poisson vs fond)
@@ -72,7 +72,7 @@ def set_seed(seed):
 
 
 # ---------------------------------------------------------------------------
-# Modèle — SimpleCNN adapté RGB / N classes
+# Modèle - SimpleCNN adapté RGB / N classes
 # ---------------------------------------------------------------------------
 class SimpleCNN_RGB(nn.Module):
     """SimpleCNN pour images RGB 128×128 et N classes."""
@@ -111,7 +111,7 @@ class SimpleCNN_RGB(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# Modèle — ResNet18 pré-entraîné (Transfer Learning)
+# Modèle - ResNet18 pré-entraîné (Transfer Learning)
 # ---------------------------------------------------------------------------
 class ResNet18_Fish(nn.Module):
     """ResNet18 pré-entraîné sur ImageNet, fine-tuné pour N classes."""
@@ -649,7 +649,7 @@ if __name__ == '__main__':
                 'iou_scores': iou_scores,
                 'per_class_accs': {k: v.tolist() for k, v in per_class_accs.items()}
             }, f, indent=2)
-        print(f'  ✓ {d:.0f}s — test_acc={h["test_acc"][-1]:.1f}%\n')
+        print(f'  ✓ {d:.0f}s - test_acc={h["test_acc"][-1]:.1f}%\n')
 
     # IoU GradCAM ↔ Segmentation
     for name, mode, _ in configs:
@@ -668,7 +668,7 @@ if __name__ == '__main__':
     # Exemples GradCAM
     print('▶ Génération des exemples GradCAM...')
     if not models_out:
-        print('  [!] Aucun modèle entraîné dans cette session — galerie vide.')
+        print('  [!] Aucun modèle entraîné dans cette session - galerie vide.')
         examples = []
     else:
         examples = generate_examples(models_out, test_ds, RESULTS_DIR, n=60)

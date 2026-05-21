@@ -6,7 +6,7 @@ Classes :
   - Negative : 6 types différents (cercle seul, triangle dehors, etc.)
 
 Usage :
-    python dataset_generator.py
+    python3 dataset_generator.py
 
 Configuration :
     Modifiez config.py pour ajuster le nombre d'images, tailles, ratios, etc.

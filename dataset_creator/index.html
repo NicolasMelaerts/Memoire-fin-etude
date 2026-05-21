@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,9 +23,10 @@
             --accent: #3F51B5;
             --accent-secondary: #2196F3;
             --border: #2a2f45;
-            --shadow: 0 4px 20px rgba(0,0,0,0.3);
-            --shadow-hover: 0 6px 30px rgba(0,0,0,0.5);
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            --shadow-hover: 0 6px 30px rgba(0, 0, 0, 0.5);
         }
+
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
             background-color: var(--bg-color);
@@ -34,22 +36,26 @@
             line-height: 1.5;
             min-height: 100vh;
         }
+
         .header {
             background: linear-gradient(135deg, #1a1f36 0%, #0f1117 100%);
             border-bottom: 1px solid var(--border);
             padding: 32px 40px;
             margin-bottom: 32px;
         }
+
         .title {
             font-size: 1.8rem;
             font-weight: 700;
             color: var(--text-white);
             margin-bottom: 8px;
         }
+
         .subtitle {
             color: var(--text-muted);
             font-size: 0.95rem;
         }
+
         .controls {
             display: flex;
             gap: 1.5rem;
@@ -62,11 +68,13 @@
             max-width: 1600px;
             margin: 0 auto 30px;
         }
+
         .control-group {
             display: flex;
             align-items: center;
             gap: 0.75rem;
         }
+
         .stats-board {
             display: flex;
             gap: 1.5rem;
@@ -75,6 +83,7 @@
             flex-wrap: wrap;
             padding: 0 24px;
         }
+
         .stat-card {
             background: var(--card-bg);
             border-radius: 10px;
@@ -85,11 +94,13 @@
             min-width: 200px;
             border-left: 4px solid var(--accent);
         }
+
         .stat-value {
             font-size: 1.5rem;
             font-weight: 700;
             color: var(--text-main);
         }
+
         .stat-label {
             font-size: 0.8rem;
             font-weight: 600;
@@ -98,11 +109,13 @@
             letter-spacing: 0.05em;
             margin-top: 0.25rem;
         }
+
         .case-breakdown {
             flex: 2;
             min-width: 300px;
             border-left: 4px solid #8b5cf6;
         }
+
         label {
             font-weight: 600;
             font-size: 0.875rem;
@@ -110,6 +123,7 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+
         select {
             padding: 0.6rem 2.5rem 0.6rem 1rem;
             border-radius: 6px;
@@ -127,15 +141,18 @@
             background-size: 1rem;
             transition: all 0.3s;
         }
+
         select:hover {
             background-color: #1f2438;
             border-color: var(--accent);
         }
+
         select:focus {
             outline: none;
             border-color: var(--accent);
             box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.2);
         }
+
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
@@ -144,6 +161,7 @@
             margin: 0 auto;
             padding: 0 24px 32px;
         }
+
         .card {
             background: var(--card-bg);
             border-radius: 8px;
@@ -155,31 +173,37 @@
             flex-direction: column;
             gap: 1rem;
         }
+
         .card:hover {
             box-shadow: var(--shadow-hover);
             transform: translateY(-2px);
             border-color: var(--accent);
         }
+
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
         }
+
         .file-info {
             display: flex;
             flex-direction: column;
             gap: 0.25rem;
         }
+
         .filename {
             font-size: 0.875rem;
             font-weight: 600;
             color: var(--text-main);
         }
+
         .case-label {
             font-size: 0.75rem;
             color: var(--text-muted);
             font-weight: 500;
         }
+
         .badge {
             padding: 0.25rem 0.75rem;
             border-radius: 9999px;
@@ -188,21 +212,25 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+
         .badge-positive {
             background-color: #dcfce7;
             color: #166534;
             border: 1px solid #bbf7d0;
         }
+
         .badge-negative {
             background-color: #fee2e2;
             color: #991b1b;
             border: 1px solid #fecaca;
         }
+
         .img-container {
             display: flex;
             gap: 1rem;
             flex: 1;
         }
+
         .img-block {
             flex: 1;
             display: flex;
@@ -210,6 +238,7 @@
             gap: 0.5rem;
             min-width: 0;
         }
+
         .img-title {
             font-size: 0.7rem;
             font-weight: 600;
@@ -218,6 +247,7 @@
             text-align: center;
             letter-spacing: 0.05em;
         }
+
         .img-wrapper {
             background: var(--card-bg-secondary);
             border-radius: 6px;
@@ -229,6 +259,7 @@
             overflow: hidden;
             border: 1px solid var(--border);
         }
+
         .img-wrapper img {
             width: 100%;
             height: 100%;
@@ -236,12 +267,14 @@
             border-radius: 8px;
             image-rendering: pixelated;
         }
+
         .pagination {
             font-size: 0.875rem;
             color: var(--text-muted);
             font-weight: 500;
             margin-left: auto;
         }
+
         .explanation-section {
             max-width: 1600px;
             margin: 0 auto 30px;
@@ -252,6 +285,7 @@
             border: 1px solid var(--border);
             border-left: 4px solid #4CAF50;
         }
+
         .explanation-title {
             font-size: 1.2rem;
             font-weight: 600;
@@ -263,20 +297,24 @@
             align-items: center;
             gap: 0.5rem;
         }
+
         .explanation-content {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 2rem;
             margin-bottom: 1rem;
         }
+
         .explanation-text {
             font-size: 0.85rem;
             color: var(--text-main);
             line-height: 1.6;
         }
+
         .explanation-text strong {
             color: #10b981;
         }
+
         .explanation-text code {
             background: var(--card-bg-secondary);
             padding: 0.2rem 0.4rem;
@@ -285,11 +323,13 @@
             font-size: 0.85rem;
             color: #f44336;
         }
+
         .heatmap-visual {
             display: flex;
             flex-direction: column;
             gap: 1rem;
         }
+
         .value-grid {
             display: grid;
             grid-template-columns: repeat(8, 1fr);
@@ -300,6 +340,7 @@
             max-width: 200px;
             margin: 0 auto;
         }
+
         .value-cell {
             aspect-ratio: 1;
             display: flex;
@@ -310,6 +351,7 @@
             color: white;
             border-radius: 1px;
         }
+
         .legend {
             display: flex;
             align-items: center;
@@ -317,21 +359,26 @@
             font-size: 0.8rem;
             color: var(--text-muted);
         }
+
         .legend-gradient {
             flex: 1;
             height: 24px;
             border-radius: 4px;
             background: linear-gradient(to right,
-                rgb(0, 0, 128) 0%,     /* Bleu (background) */
-                rgb(0, 0, 128) 25%,
-                rgb(255, 255, 0) 25%,  /* Jaune (cercle) */
-                rgb(255, 255, 0) 50%,
-                rgb(255, 165, 0) 50%,  /* Orange (contour triangle) */
-                rgb(255, 165, 0) 75%,
-                rgb(255, 0, 0) 75%,    /* Rouge (triangle) */
-                rgb(255, 0, 0) 100%
-            );
+                    rgb(0, 0, 128) 0%,
+                    /* Bleu (background) */
+                    rgb(0, 0, 128) 25%,
+                    rgb(255, 255, 0) 25%,
+                    /* Jaune (cercle) */
+                    rgb(255, 255, 0) 50%,
+                    rgb(255, 165, 0) 50%,
+                    /* Orange (contour triangle) */
+                    rgb(255, 165, 0) 75%,
+                    rgb(255, 0, 0) 75%,
+                    /* Rouge (triangle) */
+                    rgb(255, 0, 0) 100%);
         }
+
         .example-title {
             text-align: center;
             font-weight: 600;
@@ -339,24 +386,29 @@
             font-size: 0.85rem;
             margin-bottom: 0.5rem;
         }
+
         .example-note {
             font-size: 0.8rem;
             color: var(--text-muted);
             text-align: center;
             margin-top: 0.5rem;
         }
+
         .distribution-panel {
-            max-width: 1600px; margin: 0 auto 30px;
+            max-width: 1600px;
+            margin: 0 auto 30px;
             background: var(--card-bg);
             border-radius: 12px;
             border: 1px solid var(--border);
             box-shadow: var(--shadow);
             padding: 2rem;
         }
+
         .dist-header {
             text-align: center;
             margin-bottom: 2rem;
         }
+
         .dist-total {
             display: inline-flex;
             flex-direction: column;
@@ -366,26 +418,33 @@
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
         }
+
         .dist-total-val {
             font-size: 2.5rem;
             font-weight: 700;
             color: #fff;
             line-height: 1;
         }
+
         .dist-total-lbl {
             font-size: 0.9rem;
-            color: rgba(255,255,255,0.8);
+            color: rgba(255, 255, 255, 0.8);
             text-transform: uppercase;
             letter-spacing: 0.1em;
             margin-top: 0.5rem;
         }
+
         .dist-columns {
             display: flex;
             gap: 2rem;
         }
+
         @media (max-width: 900px) {
-            .dist-columns { flex-direction: column; }
+            .dist-columns {
+                flex-direction: column;
+            }
         }
+
         .dist-col {
             flex: 1;
             background: var(--card-bg-secondary);
@@ -395,13 +454,24 @@
             position: relative;
             overflow: hidden;
         }
+
         .dist-col::before {
             content: '';
             position: absolute;
-            top: 0; left: 0; right: 0; height: 4px;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
         }
-        .positive-col::before { background: #4CAF50; }
-        .negative-col::before { background: #F44336; }
+
+        .positive-col::before {
+            background: #4CAF50;
+        }
+
+        .negative-col::before {
+            background: #F44336;
+        }
+
         .col-header {
             display: flex;
             justify-content: space-between;
@@ -410,26 +480,37 @@
             padding-bottom: 1rem;
             border-bottom: 1px solid var(--border);
         }
+
         .col-title {
             font-size: 1.4rem;
             font-weight: 600;
             color: var(--text-main);
         }
-        .positive-col .col-title { color: #4CAF50; }
-        .negative-col .col-title { color: #F44336; }
+
+        .positive-col .col-title {
+            color: #4CAF50;
+        }
+
+        .negative-col .col-title {
+            color: #F44336;
+        }
+
         .col-count {
             font-size: 1.8rem;
             font-weight: 700;
             color: var(--text-white);
         }
+
         .col-count span {
             font-size: 1rem;
             color: var(--text-muted);
             font-weight: 500;
         }
+
         .dist-section {
             margin-bottom: 1.5rem;
         }
+
         .section-title {
             font-size: 0.85rem;
             color: var(--text-muted);
@@ -438,13 +519,15 @@
             margin-bottom: 0.75rem;
             font-weight: 600;
         }
+
         .bar-chart {
             display: flex;
             height: 28px;
             border-radius: 6px;
             overflow: hidden;
-            background: rgba(0,0,0,0.2);
+            background: rgba(0, 0, 0, 0.2);
         }
+
         .bar-segment {
             display: flex;
             align-items: center;
@@ -452,10 +535,23 @@
             overflow: hidden;
             transition: width 0.5s ease;
         }
-        .positive-col .bar-segment.with-arrow { background: rgba(76, 175, 80, 0.8); }
-        .positive-col .bar-segment.no-arrow { background: rgba(76, 175, 80, 0.3); }
-        .negative-col .bar-segment.with-arrow { background: rgba(244, 67, 54, 0.8); }
-        .negative-col .bar-segment.no-arrow { background: rgba(244, 67, 54, 0.3); }
+
+        .positive-col .bar-segment.with-arrow {
+            background: rgba(76, 175, 80, 0.8);
+        }
+
+        .positive-col .bar-segment.no-arrow {
+            background: rgba(76, 175, 80, 0.3);
+        }
+
+        .negative-col .bar-segment.with-arrow {
+            background: rgba(244, 67, 54, 0.8);
+        }
+
+        .negative-col .bar-segment.no-arrow {
+            background: rgba(244, 67, 54, 0.3);
+        }
+
         .bar-label {
             font-size: 0.75rem;
             color: #fff;
@@ -463,48 +559,61 @@
             white-space: nowrap;
             padding: 0 8px;
         }
+
         .breakdown-list {
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
         }
+
         .breakdown-item {
             display: flex;
             align-items: center;
-            background: rgba(255,255,255,0.02);
+            background: rgba(255, 255, 255, 0.02);
             padding: 0.5rem 0.75rem;
             border-radius: 6px;
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
+
         .bd-label {
             flex: 1;
             font-size: 0.85rem;
             color: var(--text-main);
         }
+
         .bd-val {
             font-weight: 700;
             color: var(--text-white);
             font-size: 0.9rem;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.3);
             padding: 2px 8px;
             border-radius: 10px;
         }
+
         .bd-bar-container {
             width: 100px;
             height: 6px;
-            background: rgba(0,0,0,0.2);
+            background: rgba(0, 0, 0, 0.2);
             border-radius: 3px;
             margin-left: 10px;
             overflow: hidden;
         }
+
         .bd-bar {
             height: 100%;
             border-radius: 3px;
         }
-        .positive-col .bd-bar { background: #4CAF50; }
-        .negative-col .bd-bar { background: #F44336; }
+
+        .positive-col .bd-bar {
+            background: #4CAF50;
+        }
+
+        .negative-col .bd-bar {
+            background: #F44336;
+        }
     </style>
 </head>
+
 <body>
 
     <header class="header">
@@ -644,14 +753,14 @@
 
             const posPercent = pos > 0 ? Math.round((posWithArrow / pos) * 100) : 0;
             const negPercent = neg > 0 ? Math.round((negWithArrow / neg) * 100) : 0;
-            
+
             const posTotalPercent = total > 0 ? Math.round((pos / total) * 100) : 0;
             const negTotalPercent = total > 0 ? Math.round((neg / total) * 100) : 0;
 
             // Positive Breakdown
             const posClean = datasetData.filter(d => d.case === 'positive').length;
             const posNoise = datasetData.filter(d => d.case === 'positive_noise').length;
-            
+
             const maxPosCase = Math.max(posClean, posNoise, 1);
             const posSubitemsHtml = [
                 { label: 'Clean', val: posClean },
@@ -660,7 +769,7 @@
                 <div class="breakdown-item">
                     <span class="bd-label">${item.label}</span>
                     <span class="bd-val">${item.val}</span>
-                    <div class="bd-bar-container"><div class="bd-bar" style="width: ${Math.round((item.val/maxPosCase)*100)}%"></div></div>
+                    <div class="bd-bar-container"><div class="bd-bar" style="width: ${Math.round((item.val / maxPosCase) * 100)}%"></div></div>
                 </div>
             `).join('');
 
@@ -693,7 +802,7 @@
                     <div class="breakdown-item">
                         <span class="bd-label">${type.label}</span>
                         <span class="bd-val">${val}</span>
-                        <div class="bd-bar-container"><div class="bd-bar" style="width: ${Math.round((val/maxNegCase)*100)}%"></div></div>
+                        <div class="bd-bar-container"><div class="bd-bar" style="width: ${Math.round((val / maxNegCase) * 100)}%"></div></div>
                     </div>
                 `;
             }).join('');
@@ -720,8 +829,8 @@
                                     <div class="bar-segment with-arrow" style="width: ${posPercent}%">
                                         <span class="bar-label">Avec (${posPercent}%)</span>
                                     </div>
-                                    <div class="bar-segment no-arrow" style="width: ${100-posPercent}%">
-                                        <span class="bar-label">Sans (${100-posPercent}%)</span>
+                                    <div class="bar-segment no-arrow" style="width: ${100 - posPercent}%">
+                                        <span class="bar-label">Sans (${100 - posPercent}%)</span>
                                     </div>
                                 </div>
                             </div>
@@ -747,8 +856,8 @@
                                     <div class="bar-segment with-arrow" style="width: ${negPercent}%">
                                         <span class="bar-label">Avec (${negPercent}%)</span>
                                     </div>
-                                    <div class="bar-segment no-arrow" style="width: ${100-negPercent}%">
-                                        <span class="bar-label">Sans (${100-negPercent}%)</span>
+                                    <div class="bar-segment no-arrow" style="width: ${100 - negPercent}%">
+                                        <span class="bar-label">Sans (${100 - negPercent}%)</span>
                                     </div>
                                 </div>
                             </div>
@@ -840,4 +949,5 @@
         window.onload = init;
     </script>
 </body>
+
 </html>

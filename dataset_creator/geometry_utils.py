@@ -13,13 +13,13 @@ import math
 class GeometryUtils:
     @staticmethod
     def is_point_in_circle(point, circle_center, circle_radius):
-        """Check if a point (x, y) is inside a circle."""
+        """Vérifie si un point (x, y) est à l'intérieur d'un cercle."""
         dist = math.hypot(point[0] - circle_center[0], point[1] - circle_center[1])
         return dist <= circle_radius
 
     @staticmethod
     def is_triangle_in_circle(triangle_points, circle_center, circle_radius):
-        """Check if a triangle is completely inside a circle."""
+        """Vérifie si un triangle est complètement à l'intérieur d'un cercle."""
         for point in triangle_points:
             if not GeometryUtils.is_point_in_circle(point, circle_center, circle_radius):
                 return False
@@ -28,16 +28,16 @@ class GeometryUtils:
     @staticmethod
     def is_triangle_outside_circle(triangle_points, circle_center, circle_radius):
         """
-        Check if a triangle is completely outside a circle.
-        1. All vertices must be outside.
-        2. No edge should intersect the circle.
+        Vérifie si un triangle est complètement à l'extérieur d'un cercle.
+        1. Tous les sommets doivent être à l'extérieur.
+        2. Aucun côté ne doit intersecter le cercle.
         """
-        # 1. Check vertices
+        # 1. Vérifier les sommets
         for point in triangle_points:
             if GeometryUtils.is_point_in_circle(point, circle_center, circle_radius):
                 return False
 
-        # 2. Check overlap with edges
+        # 2. Vérifier le chevauchement avec les côtés
         for i in range(3):
             p1 = triangle_points[i]
             p2 = triangle_points[(i + 1) % 3]
@@ -53,7 +53,7 @@ class GeometryUtils:
 
     @staticmethod
     def circle_intersects_segment(center, radius, p1, p2):
-        """Check if a circle intersects with a line segment p1-p2."""
+        """Vérifie si un cercle intersecte un segment de droite p1-p2."""
         dx, dy = p2[0] - p1[0], p2[1] - p1[1]
         if dx == 0 and dy == 0:
             return False
@@ -68,9 +68,9 @@ class GeometryUtils:
 
     @staticmethod
     def triangles_overlap(tri1, tri2):
-        """Check if two triangles overlap using Separating Axis Theorem (SAT)."""
+        """Vérifie si deux triangles se chevauchent en utilisant le théorème de l'axe séparateur (SAT)."""
         def get_edges(triangle):
-            """Get edges (as vectors) from a triangle."""
+            """Récupère les côtés (sous forme de vecteurs) d'un triangle."""
             edges = []
             for i in range(3):
                 p1 = triangle[i]
@@ -79,46 +79,46 @@ class GeometryUtils:
             return edges
 
         def get_perpendicular(edge):
-            """Get perpendicular vector (normal) to an edge."""
+            """Récupère le vecteur perpendiculaire (normale) à un côté."""
             return (-edge[1], edge[0])
 
         def project_triangle(triangle, axis):
-            """Project all points of triangle onto axis and return min/max."""
+            """Projette tous les points du triangle sur l'axe et retourne le min/max."""
             projections = []
             for point in triangle:
-                # Dot product
+                # Produit scalaire
                 proj = point[0] * axis[0] + point[1] * axis[1]
                 projections.append(proj)
             return min(projections), max(projections)
 
         def projections_overlap(proj1, proj2):
-            """Check if two 1D projections overlap."""
+            """Vérifie si deux projections 1D se chevauchent."""
             min1, max1 = proj1
             min2, max2 = proj2
             return not (max1 < min2 or max2 < min1)
 
-        # Get all edges from both triangles
+        # Récupérer tous les côtés des deux triangles
         edges1 = get_edges(tri1)
         edges2 = get_edges(tri2)
 
-        # Test all axes (perpendiculars to edges)
+        # Tester tous les axes (perpendiculaires aux côtés)
         all_edges = edges1 + edges2
         for edge in all_edges:
             axis = get_perpendicular(edge)
 
-            # Normalize axis (optional but helps with numerical stability)
+            # Normaliser l'axe (optionnel mais aide à la stabilité numérique)
             length = math.sqrt(axis[0]**2 + axis[1]**2)
             if length < 1e-10:
                 continue
             axis = (axis[0] / length, axis[1] / length)
 
-            # Project both triangles onto this axis
+            # Projeter les deux triangles sur cet axe
             proj1 = project_triangle(tri1, axis)
             proj2 = project_triangle(tri2, axis)
 
-            # If projections don't overlap on any axis, triangles don't overlap
+            # Si les projections ne se chevauchent pas sur un axe, les triangles ne se chevauchent pas
             if not projections_overlap(proj1, proj2):
                 return False
 
-        # If all axes have overlapping projections, triangles overlap
+        # Si tous les axes ont des projections qui se chevauchent, les triangles se chevauchent
         return True

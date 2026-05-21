@@ -31,13 +31,13 @@ class DatasetGenerator:
         self.images_dir = os.path.join(config.OUTPUT_DIR, 'images')
         self.heatmaps_dir = os.path.join(config.OUTPUT_DIR, 'heatmaps')
 
-        # Create output directories
+        # Créer les répertoires de sortie
         if not os.path.exists(self.images_dir):
             os.makedirs(self.images_dir)
         if not os.path.exists(self.heatmaps_dir):
             os.makedirs(self.heatmaps_dir)
 
-        # Initialize generators
+        # Initialiser les générateurs
         self.shape_gen = ShapeGenerator(config)
         self.heatmap_gen = HeatmapGenerator(config)
         self.sample_gen = SampleGenerator(config, self.shape_gen, self.heatmap_gen)
@@ -61,7 +61,7 @@ class DatasetGenerator:
         heatmap = None
         label = 'negative'
 
-        # Dispatch to appropriate generator
+        # Aiguiller vers le générateur approprié
         if case_type == 'positive':
             success_result = self.sample_gen.generate_positive_sample(w, h, draw, force_arrow)
             label = 'positive'
@@ -91,21 +91,21 @@ class DatasetGenerator:
             filename = f"image_{sample_id:05d}.png"
             filepath = os.path.join(self.images_dir, filename)
 
-            # Delete existing file if it exists (avoids PIL auto-numbering)
+            # Supprimer le fichier existant s'il existe (évite le renommage automatique de PIL)
             if os.path.exists(filepath):
                 try:
                     os.remove(filepath)
                 except Exception as e:
-                    # Likely a lock issue (sync service). PIL might create image_00xxx 2.png
+                    # Probablement un problème de verrouillage (service de synchronisation).
                     pass
 
             try:
                 img.save(filepath)
             except Exception as e:
-                # If save fails, we still return the expected name, cleanup will fix it
+                # Si la sauvegarde échoue, nous retournons tout de même le nom attendu, le nettoyage corrigera cela
                 print(f"  Warning: Save failed for {filename}, cleanup will attempt fix. ({e})")
 
-            img.close()  # Close the image to release file handle
+            img.close()  # Fermer l'image pour libérer le descripteur de fichier
 
             if heatmap:
                 heatmap_values, heatmap_rgb = heatmap
@@ -114,9 +114,9 @@ class DatasetGenerator:
                 if os.path.exists(heatmap_png_path):
                     os.remove(heatmap_png_path)
                 heatmap_rgb.save(heatmap_png_path)
-                heatmap_rgb.close()  # Close to release file handle
+                heatmap_rgb.close()  # Fermer pour libérer le descripteur de fichier
 
-                # Save raw values for training (numpy array)
+                # Sauvegarder les valeurs brutes pour l'entraînement (tableau numpy)
                 heatmap_npy_path = os.path.join(self.heatmaps_dir, f"image_{sample_id:05d}_heatmap.npy")
                 if os.path.exists(heatmap_npy_path):
                     os.remove(heatmap_npy_path)
@@ -166,7 +166,7 @@ class DatasetGenerator:
         arrow_target = int(negative_count * self.config.ARROW_RATIO_NEGATIVE / 100)
         arrows_assigned = 0
 
-        # Build the exact splits
+        # Construire les répartitions exactes
         for type_idx, count in enumerate(type_counts):
             # Répartir les flèches proportionnellement
             type_arrow_target = int(count * self.config.ARROW_RATIO_NEGATIVE / 100)
@@ -178,7 +178,7 @@ class DatasetGenerator:
             arrows_assigned += type_arrow_target
             type_no_arrow_target = count - type_arrow_target
 
-            # Append correct totals
+            # Ajouter aux totaux corrects
             negatives.extend([(neg_types[type_idx], True)] * type_arrow_target)
             negatives.extend([(neg_types[type_idx], False)] * type_no_arrow_target)
 
@@ -187,7 +187,7 @@ class DatasetGenerator:
 
         print(f"Generating {total} images...")
 
-        # Clean dir roughly
+        # Nettoyer grossièrement le dossier
         for f in os.listdir(self.images_dir):
             os.remove(os.path.join(self.images_dir, f))
         for f in os.listdir(self.heatmaps_dir):
@@ -196,7 +196,7 @@ class DatasetGenerator:
 
         count = 0
         for i, _ in enumerate(tasks):
-            # Try loop to ensure success (max 100 attempts per image)
+            # Boucle de tentative pour garantir le succès (max 100 essais par image)
             max_attempts = 100
             for attempt in range(max_attempts):
                 case_type, force_arrow = tasks[i]
@@ -211,19 +211,19 @@ class DatasetGenerator:
                     count += 1
                     break
             else:
-                # Failed after max_attempts
+                # Échec après max_attempts
                 print(f"Warning: Failed to generate image {count} after {max_attempts} attempts")
                 count += 1
 
         print(f"Generated {count} / {total} images successfully.")
 
-        # Save data.js for HTML visualization
+        # Sauvegarder data.js pour la visualisation HTML
         data_js_path = os.path.join(self.config.OUTPUT_DIR, 'data.js')
         with open(data_js_path, 'w') as f:
             f.write(f"const datasetData = {json.dumps(annotations, indent=2)};")
         print(f"  → data.js")
 
-        # Also save CSV for training scripts compatibility
+        # Sauvegarder également le CSV pour la compatibilité avec les scripts d'entraînement
         csv_path = os.path.join(self.config.OUTPUT_DIR, 'annotations.csv')
         with open(csv_path, 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=['filename', 'class', 'case', 'has_arrow'])

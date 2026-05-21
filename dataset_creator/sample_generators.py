@@ -23,16 +23,16 @@ class SampleGenerator:
         Génère un échantillon positif : cercle avec triangle à l'intérieur.
         Flèche pointant vers le cercle depuis l'extérieur.
         """
-        # Circle with triangle inside + arrow from OUTSIDE pointing TO circle
+        # Cercle avec triangle à l'intérieur + flèche de l'EXTÉRIEUR pointant VERS le cercle
         circle_center, circle_radius = self.shape_gen.generate_random_circle(w, h)
         if not circle_center:
             return False
 
-        # Try to put triangle inside
+        # Essayer de placer le triangle à l'intérieur
         triangle_points = None
 
         for _ in range(50):
-            # Generate random center inside circle with margin
+            # Générer un centre aléatoire à l'intérieur du cercle avec une marge
             margin = (self.config.MAX_TRIANGLE_SIDE / math.sqrt(3)) + 5
             if circle_radius < margin:
                 return False
@@ -43,7 +43,7 @@ class SampleGenerator:
             ty = int(circle_center[1] + r * math.sin(theta))
 
             pts, center = self.shape_gen._create_triangle_points(tx, ty, w, h)
-            # Check if triangle is valid (not clipped) and inside circle
+            # Vérifier si le triangle est valide (non coupé) et à l'intérieur du cercle
             if pts is not None and GeometryUtils.is_triangle_in_circle(pts, circle_center, circle_radius):
                 triangle_points = pts
                 break
@@ -51,35 +51,35 @@ class SampleGenerator:
         if not triangle_points:
             return False
 
-        # Draw Circle
+        # Dessiner le cercle
         x, y = circle_center
         r = circle_radius
         draw.ellipse([x-r, y-r, x+r, y+r], outline=None, fill=128)
 
-        # Draw Triangle
+        # Dessiner le triangle
         draw.polygon(triangle_points, outline=None, fill=0)
 
-        # Draw random Arrow: Outside pointing to circle
+        # Dessiner une flèche aléatoire : Extérieur pointant vers le cercle
         arrow_success, has_arrow = self.shape_gen.add_random_arrow(draw, w, h, circle_center, circle_radius, force_arrow=force_arrow)
         if not arrow_success:
             return False
 
-        # Generate heatmap (both values and RGB)
+        # Générer la heatmap (valeurs brutes et RGB)
         heatmap_values, heatmap_rgb = self.heatmap_gen.generate_heatmap(w, h, [(circle_center[0], circle_center[1], circle_radius)], [triangle_points])
         return True, (heatmap_values, heatmap_rgb), has_arrow
 
     def generate_positive_sample_with_noise(self, w, h, draw, force_arrow):
         """
-        Positive sample with noise (distractors):
-        - Main: circle with triangle inside (positive pattern)
-        - Noise: 1-2 extra circles and/or triangles outside the main circle
+        Échantillon positif avec du bruit (distracteurs) :
+        - Principal : cercle avec triangle à l'intérieur (motif positif)
+        - Bruit : 1 à 2 cercles et/ou triangles supplémentaires à l'extérieur du cercle principal
         """
-        # First generate the standard positive pattern
+        # Générer d'abord le motif positif standard
         circle_center, circle_radius = self.shape_gen.generate_random_circle(w, h)
         if not circle_center:
             return False
 
-        # Try to put triangle inside main circle
+        # Essayer de placer le triangle à l'intérieur du cercle principal
         triangle_points = None
 
         for _ in range(50):
@@ -100,12 +100,11 @@ class SampleGenerator:
         if not triangle_points:
             return False
 
-        # Track all shapes for overlap checking
+        # Suivre toutes les formes pour vérifier les chevauchements
         all_circles = [(circle_center, circle_radius)]
         all_triangles = [triangle_points]
 
         # Garantir au moins 1 élément de bruit (1-2 cercles ou 1-2 triangles)
-        # Strategy: roll for circles first, if 0, force at least 1 triangle
         num_noise_circles = random.randint(0, 2)
         num_noise_triangles = random.randint(0, 2)
 
@@ -116,7 +115,7 @@ class SampleGenerator:
             else:
                 num_noise_triangles = random.randint(1, 2)
 
-        # Add 1-2 noise circles (outside main circle)
+        # Ajouter 1 à 2 cercles de bruit (à l'extérieur du cercle principal)
         for _ in range(num_noise_circles):
             for attempt in range(30):
                 nc, nr = self.shape_gen.generate_random_circle(w, h, all_circles)
@@ -124,21 +123,21 @@ class SampleGenerator:
                     all_circles.append((nc, nr))
                     break
 
-        # Add 1-2 noise triangles (outside all circles)
+        # Ajouter 1 à 2 triangles de bruit (à l'extérieur de tous les cercles)
         for _ in range(num_noise_triangles):
             for attempt in range(30):
                 pts, _ = self.shape_gen.generate_random_triangle(w, h)
                 if pts is None:
                     continue
 
-                # Check it's outside all circles
+                # Vérifier qu'il est à l'extérieur de tous les cercles
                 outside_all = True
                 for c, r in all_circles:
                     if not GeometryUtils.is_triangle_outside_circle(pts, c, r):
                         outside_all = False
                         break
 
-                # Check it doesn't overlap with existing triangles
+                # Vérifier qu'il ne chevauche pas les triangles existants
                 if outside_all:
                     overlaps = False
                     for existing_tri in all_triangles:
@@ -150,8 +149,8 @@ class SampleGenerator:
                         all_triangles.append(pts)
                         break
 
-        # Draw all shapes
-        # Circles
+        # Dessiner toutes les formes
+        # Cercles
         for (cx, cy), cr in all_circles:
             draw.ellipse([cx-cr, cy-cr, cx+cr, cy+cr], outline=None, fill=128)
 
@@ -159,12 +158,12 @@ class SampleGenerator:
         for tri in all_triangles:
             draw.polygon(tri, outline=None, fill=0)
 
-        # Draw arrow pointing to main circle
+        # Dessiner la flèche pointant vers le cercle principal
         arrow_success, has_arrow = self.shape_gen.add_random_arrow(draw, w, h, circle_center, circle_radius, force_arrow=force_arrow)
         if not arrow_success:
             return False
 
-        # Generate heatmap (only for main circle+triangle, noise is ignored)
+        # Générer la heatmap (uniquement pour le cercle + triangle principal, le bruit est ignoré)
         heatmap_values, heatmap_rgb = self.heatmap_gen.generate_heatmap(w, h, [(circle_center[0], circle_center[1], circle_radius)], [triangle_points])
         return True, (heatmap_values, heatmap_rgb), has_arrow
 
@@ -183,7 +182,7 @@ class SampleGenerator:
 
     def generate_negative_two_triangles_in(self, w, h, draw, force_arrow):
         """Génère un cercle avec 2 triangles à l'intérieur (négatif)."""
-        # Circle with 2 triangles inside
+        # Cercle avec 2 triangles à l'intérieur
         circle_center, circle_radius = self.shape_gen.generate_random_circle(w, h)
         if not circle_center:
             return False
@@ -199,15 +198,15 @@ class SampleGenerator:
             ty = int(circle_center[1] + r * math.sin(theta))
             pts, _ = self.shape_gen._create_triangle_points(tx, ty, w, h)
 
-            # Check if triangle is valid (not clipped)
+            # Vérifier si le triangle est valide (non coupé)
             if pts is None:
                 continue
 
-            # Check if triangle is in circle
+            # Vérifier si le triangle est dans le cercle
             if not GeometryUtils.is_triangle_in_circle(pts, circle_center, circle_radius):
                 continue
 
-            # Check if it overlaps with existing triangles
+            # Vérifier s'il chevauche les triangles existants
             overlaps = False
             for existing_tri in triangles:
                 if GeometryUtils.triangles_overlap(pts, existing_tri):
@@ -232,7 +231,7 @@ class SampleGenerator:
 
     def generate_negative_triangle_out(self, w, h, draw, force_arrow):
         """Génère un cercle avec un triangle à l'extérieur (négatif)."""
-        # Circle + Triangle outside
+        # Cercle + Triangle à l'extérieur
         circle_center, circle_radius = self.shape_gen.generate_random_circle(w, h)
         if not circle_center:
             return False
@@ -240,7 +239,7 @@ class SampleGenerator:
         triangle_points = None
         for _ in range(50):
             pts, _ = self.shape_gen.generate_random_triangle(w, h)
-            # Check if triangle is valid (not clipped) and outside circle
+            # Vérifier si le triangle est valide (non coupé) et à l'extérieur du cercle
             if pts is not None and GeometryUtils.is_triangle_outside_circle(pts, circle_center, circle_radius):
                 triangle_points = pts
                 break
@@ -259,7 +258,7 @@ class SampleGenerator:
 
     def generate_negative_multiple_circles(self, w, h, draw, force_arrow):
         """Génère plusieurs cercles (2 à 4) sans triangles (négatif)."""
-        # Several circles (2 to 4)
+        # Plusieurs cercles (2 à 4)
         circles = []
         attempts = 0
         target_count = random.randint(2, 4)
@@ -285,8 +284,8 @@ class SampleGenerator:
 
     def generate_negative_disjoint(self, w, h, draw, force_arrow):
         """Génère plusieurs cercles et triangles, tous séparés (négatif)."""
-        # Multiple circles and multiple triangles, never inside
-        # 2-3 circles, 2-3 triangles
+        # Cercles et triangles multiples, jamais à l'intérieur
+        # 2-3 cercles, 2-3 triangles
         circles = []
         attempts = 0
         target_circles = random.randint(2, 3)
@@ -305,19 +304,19 @@ class SampleGenerator:
         while len(triangles) < target_triangles and attempts < 50:
             pts, _ = self.shape_gen.generate_random_triangle(w, h)
 
-            # Check if triangle is valid (not clipped)
+            # Vérifier si le triangle est valide (non coupé)
             if pts is None:
                 attempts += 1
                 continue
 
-            # Check against ALL circles
+            # Vérifier par rapport à TOUS les cercles
             safe = True
             for c, r in circles:
                 if not GeometryUtils.is_triangle_outside_circle(pts, c, r):
                     safe = False
                     break
 
-            # Check against existing triangles (no overlap)
+            # Vérifier par rapport aux triangles existants (pas de chevauchement)
             if safe:
                 for existing_tri in triangles:
                     if GeometryUtils.triangles_overlap(pts, existing_tri):
@@ -329,7 +328,7 @@ class SampleGenerator:
             attempts += 1
 
         if not triangles:
-            return False  # Require at least one for the "and triangles" part?
+            return False  # Nécessite au moins un triangle pour cette catégorie
 
         for (x, y), r in circles:
             draw.ellipse([x-r, y-r, x+r, y+r], outline=None, fill=128)
@@ -345,7 +344,7 @@ class SampleGenerator:
 
     def generate_negative_empty(self, w, h, draw, force_arrow):
         """Génère un fond vide (négatif)."""
-        # Empty background
+        # Fond vide
         arrow_success, has_arrow = self.shape_gen.add_random_arrow(draw, w, h, force_arrow=force_arrow)
         if not arrow_success:
             return False

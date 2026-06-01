@@ -1,7 +1,7 @@
 """
 run_exp3.py - Expérience 3 : Métriques détaillées Normal vs GradCAM
 
-Compare Normal vs GradCAM-Guided (λ=0.1) avec 750 images d'entraînement.
+Compare Normal vs Guided GradCAM (λ=0.1, 0.3, 0.5) avec 750 images d'entraînement.
 Calcule des métriques détaillées :
   - Accuracy : performance classification
   - F1-score : robustesse
@@ -22,186 +22,64 @@ Résultats :
     Résultats/exp3/index.html (double-cliquer pour ouvrir)
 """
 import os
-import sys
 import json
 import shutil
 import argparse
-import numpy as np
-import torch
 
-# Ajouter le dossier courant au path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# Résolution du dataset AVANT les imports shared (config.py lit DATASET_PATH à l'import)
-_exp_dir = os.path.dirname(os.path.abspath(__file__))
-_root    = os.path.dirname(_exp_dir)
-if '--dataset' in sys.argv:
-    _idx = sys.argv.index('--dataset')
-    if _idx + 1 < len(sys.argv):
-        _ds_name = sys.argv[_idx + 1]
-        # Chercher d'abord dans Expériences/, puis dans dataset_creator/
-        _candidate = os.path.join(_exp_dir, _ds_name)
-        if not os.path.isdir(_candidate):
-            _candidate = os.path.join(_root, 'dataset_creator', _ds_name)
-        os.environ['DATASET_PATH'] = _candidate
-elif 'DATASET_PATH' not in os.environ:
-    os.environ['DATASET_PATH'] = os.path.join(_root, 'dataset_creator', 'generated_dataset')
+import init_env  # noqa: F401  (side effects: sys.path + DATASET_PATH)
 
 from utils import set_seed
 from shared.config import DEVICE, EPOCHS, SEED
 from shared.dataset import get_dataloaders
-from shared.model import compute_gradcam_numpy
+from shared.detailed_metrics import compute_detailed_metrics
 
 from shared.trainer import Trainer
 from shared.strategies import NormalStrategy, GradCAMStrategy
 
-# Support custom results dir for parallel execution (BIG_EXPERIENCE)
+# Prise en charge d'un dossier de résultats personnalisé pour l'exécution parallèle (run_multidataset)
 RESULTS_DIR = os.path.join(
     os.environ.get('CUSTOM_RESULTS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Résultats')),
     'exp3'
 )
 
-# Palette de couleurs
-PALETTE = ['#2196F3', '#FF9800']
+# Modèles d'exp3 dont les résultats peuvent être recyclés depuis exp1
+# (mêmes données, même seed, même stratégie). Map: nom exp3 -> nom exp1.
+RECYCLE_FROM_EXP1 = {
+    'Normal':                  'Normal',
+    'Guided GradCAM (λ=0.1)':  'Guided GradCAM (λ=0.1)',
+}
 
 
-def compute_metrics_manual(labels, preds):
+def try_recycle_from_exp1(exp3_model_name):
     """
-    Calcule accuracy, precision, recall, f1, confusion_matrix manuellement.
-
-    Args:
-        labels: liste de vrais labels (0 ou 1)
-        preds: liste de prédictions (0 ou 1)
-
-    Returns:
-        dict: {'accuracy', 'precision', 'recall', 'f1', 'confusion_matrix'}
+    Tente de récupérer history + duration + detailed_metrics depuis le
+    metrics.json d'exp1 (dossier voisin). Retourne None si indisponible.
     """
-    labels = np.array(labels).flatten()
-    preds = np.array(preds).flatten()
+    if exp3_model_name not in RECYCLE_FROM_EXP1:
+        return None
 
-    # Confusion matrix: [[TN, FP], [FN, TP]]
-    tn = np.sum((labels == 0) & (preds == 0))
-    fp = np.sum((labels == 0) & (preds == 1))
-    fn = np.sum((labels == 1) & (preds == 0))
-    tp = np.sum((labels == 1) & (preds == 1))
+    exp1_name = RECYCLE_FROM_EXP1[exp3_model_name]
+    exp1_metrics_path = os.path.join(os.path.dirname(RESULTS_DIR), 'exp1', 'metrics.json')
+    if not os.path.exists(exp1_metrics_path):
+        return None
 
-    # Accuracy
-    accuracy = (tp + tn) / len(labels) if len(labels) > 0 else 0.0
+    try:
+        with open(exp1_metrics_path, 'r') as f:
+            exp1_data = json.load(f)
+    except json.JSONDecodeError:
+        return None
 
-    # Precision
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-
-    # Recall
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-
-    # F1-score
-    f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+    history = exp1_data.get('histories', {}).get(exp1_name)
+    duration = exp1_data.get('durations', {}).get(exp1_name)
+    detailed = exp1_data.get('detailed_metrics', {}).get(exp1_name)
+    if history is None or duration is None or detailed is None:
+        return None
 
     return {
-        'accuracy': float(accuracy),
-        'precision': float(precision),
-        'recall': float(recall),
-        'f1': float(f1),
-        'confusion_matrix': [[int(tn), int(fp)], [int(fn), int(tp)]]
+        'history': history,
+        'duration': duration,
+        'detailed_metrics': detailed,
     }
-
-
-def compute_iou(pred_map, gt_map, threshold=0.5):
-    """
-    Calcule l'IoU (Intersection over Union) entre deux heatmaps.
-
-    Args:
-        pred_map: Heatmap prédite (valeurs [0, 1])
-        gt_map: Ground truth heatmap (valeurs [0, 1])
-        threshold: Seuil pour binariser les heatmaps
-
-    Returns:
-        float: IoU score [0, 1]
-    """
-    # Binariser
-    pred_binary = (pred_map >= threshold).astype(float)
-    gt_binary = (gt_map >= threshold).astype(float)
-
-    # Intersection et union
-    intersection = np.sum(pred_binary * gt_binary)
-    union = np.sum(np.maximum(pred_binary, gt_binary))
-
-    if union == 0:
-        return 0.0
-
-    return intersection / union
-
-
-def compute_detailed_metrics(model, test_loader, device, compute_iou_flag=False):
-    """
-    Calcule toutes les métriques détaillées pour un modèle.
-
-    Returns:
-        dict: {
-            'accuracy': float,
-            'precision': float,
-            'recall': float,
-            'f1': float,
-            'confusion_matrix': [[TN, FP], [FN, TP]],
-            'iou': float (si compute_iou_flag=True),
-            'predictions': list,
-            'labels': list
-        }
-    """
-    model.eval()
-    all_preds = []
-    all_labels = []
-    all_ious = []
-
-    with torch.no_grad():
-        for images, labels, heatmaps, _ in test_loader:
-            images = images.to(device)
-            labels_np = labels.numpy()
-
-            # Prédictions (argmax pour CrossEntropy avec 2 sorties)
-            outputs = model(images)
-            preds = outputs.argmax(dim=1).cpu().numpy()
-
-            all_preds.extend(preds.tolist())
-            all_labels.extend(labels_np.tolist())
-
-            # Calcul IoU pour les images positives si demandé
-            if compute_iou_flag:
-                for i in range(len(images)):
-                    if labels_np[i] == 0:  # Positifs = classe 0 (Inside)
-                        # Générer GradCAM (nécessite les gradients)
-                        img_tensor = images[i]
-                        with torch.enable_grad():
-                            gradcam, _, _ = compute_gradcam_numpy(model, img_tensor, device=device)
-
-                        # Ground truth heatmap
-                        gt_heatmap = heatmaps[i].squeeze().numpy()
-
-                        # Calculer IoU (seuil plus bas car GradCAM peut être diffus)
-                        iou = compute_iou(gradcam, gt_heatmap, threshold=0.3)
-                        all_ious.append(iou)
-
-    # Métriques de classification (calcul manuel)
-    metrics_dict = compute_metrics_manual(all_labels, all_preds)
-
-    metrics = {
-        'accuracy': metrics_dict['accuracy'],
-        'precision': metrics_dict['precision'],
-        'recall': metrics_dict['recall'],
-        'f1': metrics_dict['f1'],
-        'confusion_matrix': metrics_dict['confusion_matrix'],
-        'predictions': all_preds,
-        'labels': all_labels
-    }
-
-    if compute_iou_flag and all_ious:
-        metrics['iou'] = float(np.mean(all_ious))
-        metrics['iou_std'] = float(np.std(all_ious))
-    else:
-        metrics['iou'] = None
-        metrics['iou_std'] = None
-
-    return metrics
 
 
 if __name__ == "__main__":
@@ -214,12 +92,14 @@ if __name__ == "__main__":
                         help="Nom du dossier dataset dans dataset_creator/ (défaut: generated_dataset)")
     args = parser.parse_args()
 
+    LAMBDAS = [0.1, 0.3, 0.5]
+
     print("=" * 70)
     print("  EXPÉRIENCE 3 : Métriques détaillées Normal vs GradCAM")
     print("=" * 70)
     print(f"  Device : {DEVICE}")
     print(f"  Epochs : {EPOCHS}")
-    print(f"  λ_gc=0.1")
+    print(f"  λ_gc  : {LAMBDAS}")
     if args.clean:
         print("  [!] Option --clean : suppression des anciens résultats")
     print()
@@ -250,76 +130,59 @@ if __name__ == "__main__":
             print("  [!] metrics.json corrompu, ignoré\n")
 
     # Dataset : 750 train / 250 test
-    test_ds = None  # Sera chargé lors du premier entraînement
     print(f"  [i] Les DataLoaders seront recréés avant chaque modèle pour garantir la synchronisation RNG.\n")
 
+    def train_and_evaluate(model_name, strategy):
+        """Entraîne un modèle et calcule ses métriques détaillées (avec IoU).
+
+        Si le modèle peut être recyclé depuis exp1 (même stratégie, mêmes
+        données, même seed), on récupère directement le résultat au lieu de
+        réentraîner.
+        """
+        if model_name in all_metrics and not args.force:
+            print(f"⏭️  {model_name} : déjà entraîné (utilisez --force pour réentraîner)\n")
+            return
+
+        if not args.force:
+            recycled = try_recycle_from_exp1(model_name)
+            if recycled is not None:
+                all_metrics[model_name] = recycled
+                with open(metrics_path, 'w') as f:
+                    json.dump(all_metrics, f, indent=2)
+                dm = recycled['detailed_metrics']
+                iou_str = f"{dm['iou']:.3f}±{dm['iou_std']:.3f}" if dm['iou'] is not None else "N/A"
+                print(f"♻️  {model_name} : recyclé depuis exp1  "
+                      f"(Acc={dm['accuracy']:.1%} F1={dm['f1']:.3f} IoU={iou_str})\n")
+                return
+
+        print(f"▶ Entraînement {model_name}...")
+        set_seed(SEED)
+        train_loader, test_loader, _ = get_dataloaders(seed=SEED, train_subset_size=750)
+
+        trainer = Trainer(strategy, verbose=True)
+        history, model, duration = trainer.run(train_loader, test_loader)
+
+        print(f"  → Calcul des métriques détaillées (avec IoU)...")
+        _, test_loader, _ = get_dataloaders(seed=SEED, train_subset_size=750)
+        detailed = compute_detailed_metrics(model, test_loader, DEVICE, compute_iou_flag=True)
+
+        all_metrics[model_name] = {
+            'history': history,
+            'duration': duration,
+            'detailed_metrics': detailed,
+        }
+        with open(metrics_path, 'w') as f:
+            json.dump(all_metrics, f, indent=2)
+
+        iou_str = f"{detailed['iou']:.3f}±{detailed['iou_std']:.3f}" if detailed['iou'] is not None else "N/A"
+        print(f"  ✓ {duration:.1f}s - Accuracy={detailed['accuracy']:.1%} F1={detailed['f1']:.3f} IoU={iou_str}\n")
+
     # ===== MODÈLE 1 : NORMAL =====
-    model_name = "Normal"
-    model_normal = None
+    train_and_evaluate("Normal", NormalStrategy())
 
-    must_train = model_name not in all_metrics or args.force
-
-    if must_train:
-        print(f"▶ Entraînement {model_name}...")
-        set_seed(SEED)
-        train_loader, test_loader, test_ds = get_dataloaders(seed=SEED, train_subset_size=750)
-
-        trainer = Trainer(NormalStrategy(), verbose=True)
-        history, model_normal, duration = trainer.run(train_loader, test_loader)
-
-        print(f"  → Calcul des métriques détaillées (avec IoU)...")
-        # Recréer le test_loader pour être sûr de l'état
-        _, test_loader, _ = get_dataloaders(seed=SEED, train_subset_size=750)
-        detailed = compute_detailed_metrics(model_normal, test_loader, DEVICE, compute_iou_flag=True)
-
-        all_metrics[model_name] = {
-            'history': history,
-            'duration': duration,
-            'detailed_metrics': detailed
-        }
-
-        # Sauvegarder immédiatement
-        with open(metrics_path, 'w') as f:
-            json.dump(all_metrics, f, indent=2)
-
-        iou_str = f"{detailed['iou']:.3f}±{detailed['iou_std']:.3f}" if detailed['iou'] is not None else "N/A"
-        print(f"  ✓ {duration:.1f}s - Accuracy={detailed['accuracy']:.1%} F1={detailed['f1']:.3f} IoU={iou_str}\n")
-    else:
-        print(f"⏭️  {model_name} : déjà entraîné (utilisez --force pour réentraîner)\n")
-
-    # ===== MODÈLE 2 : GRADCAM λ=0.1 =====
-    model_name = "GradCAM λ=0.1"
-    model_gc = None
-
-    must_train = model_name not in all_metrics or args.force
-
-    if must_train:
-        print(f"▶ Entraînement {model_name}...")
-        set_seed(SEED)
-        train_loader, test_loader, test_ds = get_dataloaders(seed=SEED, train_subset_size=750)
-
-        trainer = Trainer(GradCAMStrategy(lambda_gc=0.1), verbose=True)
-        history, model_gc, duration = trainer.run(train_loader, test_loader)
-
-        print(f"  → Calcul des métriques détaillées (avec IoU)...")
-        # Recréer le test_loader
-        _, test_loader, _ = get_dataloaders(seed=SEED, train_subset_size=750)
-        detailed = compute_detailed_metrics(model_gc, test_loader, DEVICE, compute_iou_flag=True)
-
-        all_metrics[model_name] = {
-            'history': history,
-            'duration': duration,
-            'detailed_metrics': detailed
-        }
-
-        # Sauvegarder immédiatement
-        with open(metrics_path, 'w') as f:
-            json.dump(all_metrics, f, indent=2)
-
-        iou_str = f"{detailed['iou']:.3f}±{detailed['iou_std']:.3f}" if detailed['iou'] is not None else "N/A"
-        print(f"  ✓ {duration:.1f}s - Accuracy={detailed['accuracy']:.1%} F1={detailed['f1']:.3f} IoU={iou_str}\n")
-    else:
-        print(f"⏭️  {model_name} : déjà entraîné (utilisez --force pour réentraîner)\n")
+    # ===== MODÈLES 2..N : GRADCAM λ ∈ LAMBDAS =====
+    for lam in LAMBDAS:
+        train_and_evaluate(f"Guided GradCAM (λ={lam})", GradCAMStrategy(lambda_gc=lam))
 
     # ===== GÉNÉRATION DES DONNÉES JS =====
     print("▶ Génération des données JS...")

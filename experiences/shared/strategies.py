@@ -118,7 +118,7 @@ class DoubleBackpropStrategy(BaseStrategy):
 
 
 # ===========================================================================
-# Strategy 3: GradCAM-Guided
+# Strategy 3: Guided GradCAM
 # ===========================================================================
 
 def compute_gradcam_differentiable(model, image_batch, target_classes):
@@ -181,7 +181,7 @@ def compute_gradcam_differentiable(model, image_batch, target_classes):
 
 class GradCAMStrategy(BaseStrategy):
     """
-    Stratégie GradCAM-Guided : pénalise le désalignement entre GradCAM et heatmap.
+    Stratégie Guided GradCAM : pénalise le désalignement entre GradCAM et heatmap.
 
     Loss = CE + λ * L_localisation
     où L_localisation = 1 - cosine_similarity(GradCAM, heatmap)

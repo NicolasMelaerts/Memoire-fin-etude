@@ -109,23 +109,35 @@ def generate_gradcam_examples(models_dict, test_ds, results_dir, seed,
             model.eval()
             cam, pred_idx, logits = compute_gradcam_fn(model, img_tensor, device=device)
 
+            # Heatmap colorisée (carte de chaleur seule, sans superposition)
+            heatmap_color = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
+
             # Superposition GradCAM sur l'image
-            heatmap   = cv2.applyColorMap(np.uint8(255 * cam), cv2.COLORMAP_JET)
-            overlay   = heatmap.astype(np.float32) / 255.0 + img_bgr.astype(np.float32) / 255.0
+            overlay   = heatmap_color.astype(np.float32) / 255.0 + img_bgr.astype(np.float32) / 255.0
             overlay   = (overlay / overlay.max() * 255).astype(np.uint8)
 
             cam_file = f"sample_{i:02d}_{model_name}_cam.png"
             cv2.imwrite(os.path.join(examples_dir, cam_file), overlay)
+
+            # Sauvegarde additionnelle : heatmap pure (sans superposition à l'image)
+            heatmap_file = f"sample_{i:02d}_{model_name}_heatmap.png"
+            cv2.imwrite(os.path.join(examples_dir, heatmap_file), heatmap_color)
+
+            # Sauvegarde du tableau brut (valeurs flottantes 0-1) pour réutilisation ultérieure
+            heatmap_npy = f"sample_{i:02d}_{model_name}_heatmap.npy"
+            np.save(os.path.join(examples_dir, heatmap_npy), cam)
 
             probs      = torch.softmax(logits, dim=1)[0]
             pred_label = classes[pred_idx]
             conf       = probs[pred_idx].item()
 
             sample_info['models'][model_name] = {
-                'cam_img':    cam_file,
-                'pred_label': pred_label,
-                'confidence': f"{conf:.1%}",
-                'correct':    (pred_label == true_label),
+                'cam_img':     cam_file,
+                'heatmap_img': heatmap_file,
+                'heatmap_npy': heatmap_npy,
+                'pred_label':  pred_label,
+                'confidence':  f"{conf:.1%}",
+                'correct':     (pred_label == true_label),
             }
 
         examples.append(sample_info)

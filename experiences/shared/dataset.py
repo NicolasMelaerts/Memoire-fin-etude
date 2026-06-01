@@ -84,8 +84,8 @@ def get_dataloaders(seed=SEED, train_subset_size=None):
     """Retourne train_loader et test_loader avec un split reproductible.
 
     Args:
-        seed: Random seed for reproducibility
-        train_subset_size: If provided, limits the training set to this size
+        seed: Graine aléatoire pour la reproductibilité
+        train_subset_size: Si fourni, limite la taille de l'ensemble d'entraînement à cette taille
     """
     generator = torch.Generator().manual_seed(seed)
 

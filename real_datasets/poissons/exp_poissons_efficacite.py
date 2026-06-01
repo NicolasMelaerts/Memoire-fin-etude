@@ -62,7 +62,7 @@ CLASSES = sorted([
 N_CLASSES = len(CLASSES)
 
 # Valeurs de λ pour GradCAM (entraînées à chaque fraction)
-GC_LAMBDAS = [0.1, 0.25, 0.5]
+GC_LAMBDAS = [0.1, 0.3, 0.5]
 
 # Fractions à tester (de 80% à 20%, par pas de 20%)
 GC_FRACTIONS = [0.8, 0.6, 0.4, 0.2]

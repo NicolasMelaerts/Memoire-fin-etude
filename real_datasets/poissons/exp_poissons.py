@@ -1,5 +1,5 @@
 """
-exp_poissons.py - Expérience Fish Dataset : Normal vs GradCAM-Guided
+exp_poissons.py - Expérience Fish Dataset : Normal vs Guided GradCAM
 
 Dataset réel : A Large Scale Fish Dataset (5 espèces, 1000 images/classe)
 Supervision  : masques de segmentation binaires (poisson vs fond)
@@ -39,15 +39,16 @@ RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 # ---------------------------------------------------------------------------
 # Hyperparamètres
 # ---------------------------------------------------------------------------
-IMG_SIZE     = 128
-BATCH_SIZE   = 32
-EPOCHS       = 15
-LR           = 1e-3
-SEED         = 42
-LAMBDA_GC    = 0.1
-TRAIN_RATIO  = 0.8
-DATASET_FRAC = 0.25   # fraction du dataset à utiliser (1.0 = tout, 0.1 = 10%)
-DEVICE     = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+IMG_SIZE       = 128
+BATCH_SIZE     = 32
+EPOCHS         = 15
+LR             = 1e-3
+SEED           = 42
+LAMBDA_GC_LIST = [0.1, 0.3, 0.5]     # 3 valeurs testées par architecture
+LAMBDA_GC      = LAMBDA_GC_LIST[1]   # défaut pour les helpers
+TRAIN_RATIO    = 0.8
+DATASET_FRAC   = 0.25   # fraction du dataset à utiliser (1.0 = tout, 0.1 = 10%)
+DEVICE         = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Classes du dataset (découvertes dynamiquement)
 CLASSES = sorted([
@@ -396,8 +397,9 @@ def compute_mean_iou(model, test_ds, n_samples=200):
 # Entraînement complet d'un modèle
 # ---------------------------------------------------------------------------
 def train_model(name, mode, train_loader, test_loader, epochs, verbose=True,
-                model_class=None):
-    """mode: 'normal' ou 'gradcam'. model_class: classe du modèle (défaut: SimpleCNN_RGB)."""
+                model_class=None, lambda_gc=LAMBDA_GC):
+    """mode: 'normal' ou 'gradcam'. model_class: classe du modèle (défaut: SimpleCNN_RGB).
+    lambda_gc: coefficient Guided GradCAM (ignoré si mode='normal')."""
     set_seed(SEED)
     cls = model_class or SimpleCNN_RGB
     model = cls(n_classes=N_CLASSES).to(DEVICE)
@@ -418,7 +420,8 @@ def train_model(name, mode, train_loader, test_loader, epochs, verbose=True,
             tr_loss, tr_acc = train_epoch_normal(model, train_loader, optimizer)
             tr_ce = tr_loss
         else:
-            tr_loss, tr_ce, tr_acc = train_epoch_gradcam(model, train_loader, optimizer)
+            tr_loss, tr_ce, tr_acc = train_epoch_gradcam(model, train_loader, optimizer,
+                                                        lambda_gc=lambda_gc)
 
         te_loss, te_acc, _ = eval_epoch(model, test_loader)
         scheduler.step()
@@ -539,16 +542,21 @@ def save_data_js(histories, durations, per_class_accs, examples,
 # ---------------------------------------------------------------------------
 def plot_curves(histories, epochs, output_path):
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle('Fish Dataset : Normal vs GradCAM-Guided', fontsize=13, fontweight='bold')
+    fig.suptitle('Fish Dataset : Normal vs Guided GradCAM', fontsize=13, fontweight='bold')
     epochs_range = range(1, epochs + 1)
+    # Palette : bleus pour SimpleCNN, verts pour ResNet18.
+    # Pour GradCAM, dégradés selon λ (clair = 0.1, moyen = 0.3, foncé = 0.5).
     colors = {
-        'Normal': '#2196F3', 'GradCAM (λ=0.1)': '#FF9800',
-        'Normal-ResNet18': '#4CAF50', 'GradCAM-ResNet18': '#E91E63',
+        'Normal':                    '#2196F3',
+        'GradCAM (λ=0.1)':           '#FFCC80',
+        'GradCAM (λ=0.3)':           '#FF9800',
+        'GradCAM (λ=0.5)':           '#E65100',
+        'Normal-ResNet18':           '#4CAF50',
+        'GradCAM-ResNet18 (λ=0.1)':  '#F8BBD0',
+        'GradCAM-ResNet18 (λ=0.3)':  '#E91E63',
+        'GradCAM-ResNet18 (λ=0.5)':  '#AD1457',
     }
-    styles = {
-        'Normal': '-', 'GradCAM (λ=0.1)': '--',
-        'Normal-ResNet18': '-', 'GradCAM-ResNet18': '--',
-    }
+    styles = {name: ('-' if 'Normal' in name else '--') for name in colors}
 
     for name, h in histories.items():
         c = colors.get(name, '#aaa')
@@ -577,17 +585,17 @@ def plot_curves(histories, epochs, output_path):
 # Main
 # ---------------------------------------------------------------------------
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Fish Dataset : SimpleCNN · Normal vs GradCAM-Guided')
+    parser = argparse.ArgumentParser(description='Fish Dataset : SimpleCNN · Normal vs Guided GradCAM')
     parser.add_argument('--clean',  action='store_true', help='Supprime les anciens résultats')
     args = parser.parse_args()
 
     print('=' * 70)
-    print('  Fish Dataset : SimpleCNN · Normal vs GradCAM-Guided')
+    print('  Fish Dataset : SimpleCNN · Normal vs Guided GradCAM')
     print('=' * 70)
     print(f'  Device  : {DEVICE}')
     print(f'  Epochs  : {EPOCHS}')
     print(f'  Classes : {N_CLASSES}  ({", ".join(CLASSES)})')
-    print(f'  Lambda  : {LAMBDA_GC}')
+    print(f'  Lambdas : {LAMBDA_GC_LIST}')
     print()
 
     if args.clean and os.path.exists(RESULTS_DIR):
@@ -621,20 +629,27 @@ if __name__ == '__main__':
     print()
 
     models_out = {}
+    # Tuple : (nom, mode, classe_modèle, lambda_gc)
+    # Pour les configurations Normal, lambda_gc est ignoré (None).
     configs = [
-        ('Normal',               'normal',  SimpleCNN_RGB),
-        ('GradCAM (λ=0.1)',      'gradcam', SimpleCNN_RGB),
-        ('Normal-ResNet18',      'normal',  ResNet18_Fish),
-        ('GradCAM-ResNet18',     'gradcam', ResNet18_Fish),
+        ('Normal',                      'normal',  SimpleCNN_RGB, None),
+        ('GradCAM (λ=0.1)',             'gradcam', SimpleCNN_RGB, 0.1),
+        ('GradCAM (λ=0.3)',             'gradcam', SimpleCNN_RGB, 0.3),
+        ('GradCAM (λ=0.5)',             'gradcam', SimpleCNN_RGB, 0.5),
+        ('Normal-ResNet18',             'normal',  ResNet18_Fish, None),
+        ('GradCAM-ResNet18 (λ=0.1)',    'gradcam', ResNet18_Fish, 0.1),
+        ('GradCAM-ResNet18 (λ=0.3)',    'gradcam', ResNet18_Fish, 0.3),
+        ('GradCAM-ResNet18 (λ=0.5)',    'gradcam', ResNet18_Fish, 0.5),
     ]
 
-    for name, mode, model_cls in configs:
+    for name, mode, model_cls, lam in configs:
         if name in histories:
             print(f'  [⏭]  {name} : déjà entraîné (--clean pour réentraîner)')
             continue
         print(f'▶ Entraînement {name}...')
         model, h, d = train_model(name, mode, train_loader, test_loader, EPOCHS,
-                                  model_class=model_cls)
+                                  model_class=model_cls,
+                                  lambda_gc=(lam if lam is not None else LAMBDA_GC))
 
         _, _, pca = eval_epoch(model, test_loader)
 
@@ -652,7 +667,7 @@ if __name__ == '__main__':
         print(f'  ✓ {d:.0f}s - test_acc={h["test_acc"][-1]:.1f}%\n')
 
     # IoU GradCAM ↔ Segmentation
-    for name, mode, _ in configs:
+    for name, mode, _, _ in configs:
         if name not in iou_scores:
             if name in models_out:
                 print(f'▶ Calcul IoU GradCAM ↔ Segmentation pour {name}...')
@@ -688,7 +703,7 @@ if __name__ == '__main__':
     print('=' * 70)
     print('  RÉSULTATS FINAUX')
     print('=' * 70)
-    for name, _, _ in configs:
+    for name, _, _, _ in configs:
         if name not in histories: continue
         h   = histories[name]
         iou = iou_scores.get(name, 0)

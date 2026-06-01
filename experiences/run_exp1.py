@@ -3,10 +3,10 @@ run_exp1.py - Expérience 1 : Comparaison des stratégies d'entraînement
 
 Compare 5 approches :
   - Normal (baseline)
-  - Double Backpropagation (λ = 50)
-  - GradCAM-Guided (λ = 0.1)
-  - GAIN (λ = 1.0)
-  - RRR - Right for the Right Reasons (λ = 1.0)
+  - Double Backpropagation
+  - Guided GradCAM
+  - GAIN
+  - RRR - Right for the Right Reasons
 
 Usage :
     python run_exp1.py [--clean] [--dataset NOM]
@@ -21,33 +21,17 @@ Résultats :
     Résultats/exp1/exp1.html (double-cliquer pour ouvrir)
 """
 import os
-import sys
 import json
 import shutil
 import argparse
 
-# Ajouter le dossier courant au path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# Résolution du dataset AVANT les imports shared (config.py lit DATASET_PATH à l'import)
-_exp_dir = os.path.dirname(os.path.abspath(__file__))
-_root    = os.path.dirname(_exp_dir)
-if '--dataset' in sys.argv:
-    _idx = sys.argv.index('--dataset')
-    if _idx + 1 < len(sys.argv):
-        _ds_name = sys.argv[_idx + 1]
-        # Chercher d'abord dans Expériences/, puis dans dataset_creator/
-        _candidate = os.path.join(_exp_dir, _ds_name)
-        if not os.path.isdir(_candidate):
-            _candidate = os.path.join(_root, 'dataset_creator', _ds_name)
-        os.environ['DATASET_PATH'] = _candidate
-elif 'DATASET_PATH' not in os.environ:
-    os.environ['DATASET_PATH'] = os.path.join(_root, 'dataset_creator', 'generated_dataset')
+import init_env  # noqa: F401  (side effects: sys.path + DATASET_PATH)
 
 from utils import set_seed, generate_gradcam_examples, save_data_js, plot_comparison
-from shared.config import DEVICE, EPOCHS, SEED
+from shared.config import DEVICE, EPOCHS, SEED, STRATEGY_COLORS
 from shared.dataset import get_dataloaders
 from shared.model import compute_gradcam_numpy
+from shared.detailed_metrics import compute_detailed_metrics
 
 from shared.trainer import Trainer
 from shared.strategies import (
@@ -58,22 +42,19 @@ from shared.strategies import (
     RRRStrategy
 )
 
-# Support custom results dir for parallel execution (BIG_EXPERIENCE)
+# Modèles dont les detailed_metrics seront calculées et exposées pour exp3
+# (mêmes données, même seed, même stratégie -> exp3 peut les recycler).
+SHARED_WITH_EXP3 = {'Normal', 'Guided GradCAM (λ=0.1)'}
+
+# Prise en charge d'un dossier de résultats personnalisé pour l'exécution parallèle (run_multidataset)
 RESULTS_DIR = os.path.join(
     os.environ.get('CUSTOM_RESULTS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Résultats')),
     'exp1'
 )
 
-# Palette de couleurs
-PALETTE = [
-    '#2196F3', '#FF9800', '#FF5722', '#F44336', '#E91E63',
-    '#9C27B0', '#673AB7', '#3F51B5', '#4CAF50', '#8BC34A',
-]
-
-
 def get_color_and_style(name, idx):
-    """Retourne couleur et style de ligne pour un modèle."""
-    color = PALETTE[idx % len(PALETTE)]
+    """Retourne couleur (issue de shared.config.STRATEGY_COLORS) et style de ligne."""
+    color = STRATEGY_COLORS.get(name, '#888')
     if 'Normal' in name:
         style = '-'
     elif 'Double BP' in name:
@@ -125,6 +106,7 @@ if __name__ == "__main__":
     # Charger les anciennes métriques si elles existent
     histories = {}
     durations = {}
+    detailed_metrics = {}
     metrics_path = os.path.join(RESULTS_DIR, 'metrics.json')
     if os.path.exists(metrics_path):
         try:
@@ -132,6 +114,7 @@ if __name__ == "__main__":
                 saved = json.load(f)
             histories = saved.get('histories', {})
             durations = saved.get('durations', {})
+            detailed_metrics = saved.get('detailed_metrics', {})
             print(f"  [i] {len(histories)} modèles chargés depuis metrics.json")
         except json.JSONDecodeError:
             print("  [!] metrics.json corrompu, ignoré")
@@ -145,10 +128,10 @@ if __name__ == "__main__":
 
     strategies_to_run = [
         ('Normal',          NormalStrategy()),
-        ('Double BP (λ=50.0)', DoubleBackpropStrategy(lambda_bp=50.0)),
-        ('GradCAM (λ=0.1)', GradCAMStrategy(lambda_gc=0.1)),
-        ('GAIN (λ=1.0)',    GAINStrategy(lambda_gain=1.0)),
-        ('RRR (λ=1.0)',     RRRStrategy(lambda_rrr=1.0)),
+        ('Double BP (λ=200.0)', DoubleBackpropStrategy(lambda_bp=200.0)),
+        ('Guided GradCAM (λ=0.1)', GradCAMStrategy(lambda_gc=0.1)),
+        ('GAIN (λ=0.1)',   GAINStrategy(lambda_gain=0.1)),
+        ('RRR (λ=0.1)',    RRRStrategy(lambda_rrr=0.1)),
     ]
 
     # =======================================================================
@@ -167,7 +150,20 @@ if __name__ == "__main__":
         histories[name] = h
         models_out[name] = m
         durations[name] = d
-        print(f"  ✓ {d:.1f}s - test_acc={h['test_acc'][-1]:.1f}%\n")
+        print(f"  ✓ {d:.1f}s - test_acc={h['test_acc'][-1]:.1f}%")
+
+        # Pour les modèles partagés avec exp3, calcule les métriques détaillées
+        # (precision/recall/F1/IoU) afin qu'exp3 puisse les recycler.
+        if name in SHARED_WITH_EXP3:
+            print(f"  → Calcul des métriques détaillées (pour recyclage par exp3)...")
+            _, test_loader_eval, _ = get_dataloaders(seed=SEED)
+            detailed_metrics[name] = compute_detailed_metrics(
+                m, test_loader_eval, DEVICE, compute_iou_flag=True
+            )
+            dm = detailed_metrics[name]
+            iou_str = f"IoU={dm['iou']:.3f}" if dm['iou'] is not None else "IoU=N/A"
+            print(f"    Acc={dm['accuracy']:.1%}  F1={dm['f1']:.3f}  {iou_str}")
+        print()
 
     # ---- Génération des visuels ----
     print("▶ Génération des visuels...")
@@ -198,7 +194,11 @@ if __name__ == "__main__":
 
     # Sauvegarder metrics.json
     with open(metrics_path, 'w') as f:
-        json.dump({'histories': histories, 'durations': durations}, f, indent=2)
+        json.dump({
+            'histories': histories,
+            'durations': durations,
+            'detailed_metrics': detailed_metrics,
+        }, f, indent=2)
     print(f"  → Métriques : {metrics_path}")
 
     print()

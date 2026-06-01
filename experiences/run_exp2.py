@@ -1,7 +1,7 @@
 """
 run_exp2.py - Expérience 2 : Influence de la taille du dataset
 
-Compare Normal vs GradCAM-Guided avec différentes tailles de dataset :
+Compare Normal vs Guided GradCAM avec différentes tailles de dataset :
   - 750, 500, 250, 200, 150, 100, 50, 25 images d'entraînement
   - Test fixé à 250 images (25% de 1000)
 
@@ -18,55 +18,56 @@ Résultats :
     Résultats/exp2/exp2.html (double-cliquer pour ouvrir)
 """
 import os
-import sys
 import json
 import shutil
 import argparse
 
-# Ajouter le dossier courant au path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# Résolution du dataset AVANT les imports shared (config.py lit DATASET_PATH à l'import)
-_exp_dir = os.path.dirname(os.path.abspath(__file__))
-_root    = os.path.dirname(_exp_dir)
-if '--dataset' in sys.argv:
-    _idx = sys.argv.index('--dataset')
-    if _idx + 1 < len(sys.argv):
-        _ds_name = sys.argv[_idx + 1]
-        # Chercher d'abord dans Expériences/, puis dans dataset_creator/
-        _candidate = os.path.join(_exp_dir, _ds_name)
-        if not os.path.isdir(_candidate):
-            _candidate = os.path.join(_root, 'dataset_creator', _ds_name)
-        os.environ['DATASET_PATH'] = _candidate
-elif 'DATASET_PATH' not in os.environ:
-    os.environ['DATASET_PATH'] = os.path.join(_root, 'dataset_creator', 'generated_dataset')
+import init_env  # noqa: F401  (side effects: sys.path + DATASET_PATH)
 
 from utils import set_seed, generate_gradcam_examples, save_data_js, plot_comparison
-from shared.config import DEVICE, EPOCHS, SEED
+from shared.config import DEVICE, EPOCHS, SEED, STRATEGY_COLORS
 from shared.dataset import get_dataloaders
 from shared.model import compute_gradcam_numpy
 
 from shared.trainer import Trainer
 from shared.strategies import NormalStrategy, GradCAMStrategy
 
-# Support custom results dir for parallel execution (BIG_EXPERIENCE)
+# Prise en charge d'un dossier de résultats personnalisé pour l'exécution parallèle (run_multidataset)
 RESULTS_DIR = os.path.join(
     os.environ.get('CUSTOM_RESULTS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Résultats')),
     'exp2'
 )
 
-# Palette de couleurs
-PALETTE = [
-    '#2196F3', '#FF9800', '#FF5722', '#F44336',
-    '#9C27B0', '#4CAF50', '#00BCD4', '#E91E63',
-]
+# Modèles d'exp2 (taille 750) recyclables depuis exp1 : même set_seed(SEED),
+# même get_dataloaders(seed=SEED) (les 750 indices entraînement coïncident avec
+# le train par défaut), même stratégie. Map: nom exp2 -> nom exp1.
+RECYCLE_FROM_EXP1 = {
+    'Normal (750 imgs)':                 'Normal',
+    'Guided GradCAM (λ=0.1) (750 imgs)': 'Guided GradCAM (λ=0.1)',
+}
 
 
-def get_color_and_style(name, idx):
-    """Retourne couleur et style de ligne pour un modèle."""
-    color = PALETTE[idx % len(PALETTE)]
-    style = '--' if 'GradCAM' in name else '-'
-    return color, style
+def try_recycle_from_exp1(exp2_model_name):
+    """Récupère history + duration depuis le metrics.json d'exp1 voisin
+    (None si indisponible ou modèle non recyclable)."""
+    if exp2_model_name not in RECYCLE_FROM_EXP1:
+        return None
+    exp1_name = RECYCLE_FROM_EXP1[exp2_model_name]
+    exp1_metrics_path = os.path.join(os.path.dirname(RESULTS_DIR), 'exp1', 'metrics.json')
+    if not os.path.exists(exp1_metrics_path):
+        return None
+    try:
+        with open(exp1_metrics_path, 'r') as f:
+            exp1_data = json.load(f)
+    except json.JSONDecodeError:
+        return None
+    history = exp1_data.get('histories', {}).get(exp1_name)
+    duration = exp1_data.get('durations', {}).get(exp1_name)
+    if history is None or duration is None:
+        return None
+    return {'history': history, 'duration': duration}
+
+
 
 
 if __name__ == "__main__":
@@ -120,9 +121,20 @@ if __name__ == "__main__":
 
     models_out = {}
 
-    normal_acc_by_size = {}
     for idx, size in enumerate([750, 500, 250, 200, 150, 100, 50, 25]):
         name = f"Normal ({size} imgs)"
+
+        # Tente de recycler depuis exp1 (uniquement size=750, modèle identique).
+        recycled = try_recycle_from_exp1(name)
+        if recycled is not None:
+            histories[name] = recycled['history']
+            durations[name] = recycled['duration']
+            # Pas de models_out -> exemples GradCAM non générés pour ce modèle
+            # (les exemples sont déjà dans le dashboard d'exp1).
+            print(f"♻️  {name} : recyclé depuis exp1 "
+                  f"(test_acc={recycled['history']['test_acc'][-1]:.1f}%)\n")
+            continue
+
         print(f"▶ {name}...")
         dataset_seed = SEED
         model_seed = SEED + idx
@@ -133,88 +145,75 @@ if __name__ == "__main__":
         histories[name] = h
         models_out[name] = m
         durations[name] = d
-        normal_acc_by_size[size] = h['test_acc'][-1]
         print(f"  ✓ {d:.1f}s - test_acc={h['test_acc'][-1]:.1f}%\n")
 
-    # GradCAM-Guided adaptatif : recherche de λ
-    # On teste plusieurs valeurs de λ et on l'augmente s'il ne bat pas le Normal.
-    # On conserve le meilleur résultat obtenu.
-    LAMBDA_CANDIDATES = [0.1, 0.05, 0.2, 0.25, 0.5, 1, 2]
+    # Guided GradCAM : on entraîne systématiquement λ=0.1 et λ=0.3 pour chaque
+    # taille, afin que les moyennes inter-dataset soient comparables (mêmes
+    # `n_runs` pour tous les modèles).
+    LAMBDA_CANDIDATES = [0.1, 0.3]
 
     for idx, size in enumerate([750, 500, 250, 200, 150, 100, 50, 25]):
-        target_acc = normal_acc_by_size.get(size, 0)
-        print(f"▶ Recherche GradCAM pour {size} imgs (cible Normal : {target_acc:.1f}%)...")
-
-        best_h, best_m, best_d, best_acc, best_lam = None, None, 0, -1, 0
         train_loader, test_loader, test_ds = get_dataloaders(seed=SEED, train_subset_size=size)
 
+        # Nettoyage des anciennes entrées GradCAM pour cette taille avant ré-écriture
+        # (y compris d'éventuelles λ=0.5 issues d'anciennes exécutions).
+        old_keys = [k for k in histories.keys() if "GradCAM" in k and f"({size} imgs)" in k]
+        for k in old_keys:
+            del histories[k]
+            if k in durations:  del durations[k]
+            if k in models_out: del models_out[k]
+
         for attempt, lambda_gc in enumerate(LAMBDA_CANDIDATES):
-            print(f"  ▷ Essai {attempt+1}/{len(LAMBDA_CANDIDATES)} avec λ={lambda_gc}...")
+            name = f"Guided GradCAM (λ={lambda_gc}) ({size} imgs)"
+
+            # Tente de recycler depuis exp1 (size=750, λ=0.1 uniquement).
+            recycled = try_recycle_from_exp1(name)
+            if recycled is not None:
+                histories[name] = recycled['history']
+                durations[name] = recycled['duration']
+                print(f"♻️  {name} : recyclé depuis exp1 "
+                      f"(test_acc={recycled['history']['test_acc'][-1]:.1f}%)\n")
+                continue
+
+            print(f"▶ {name}...")
             set_seed(SEED + idx + attempt * 100)
 
             trainer = Trainer(GradCAMStrategy(lambda_gc=lambda_gc), verbose=False)
             h, m, d = trainer.run(train_loader, test_loader)
 
-            acc = h['test_acc'][-1]
-            print(f"    ✓ test_acc={acc:.1f}%")
-
-            if acc > best_acc:
-                best_acc, best_h, best_m, best_d, best_lam = acc, h, m, d, lambda_gc
-
-            if acc >= target_acc and target_acc > 0:
-                print(f"  [!] Succès ! λ={lambda_gc} bat ou égale Normal ({acc:.1f}% >= {target_acc:.1f}%).")
-                break
-            elif attempt < len(LAMBDA_CANDIDATES) - 1:
-                print("  [!] Échec. Augmentation de λ pour le prochain essai...")
-            else:
-                print("  [!] Échec final. On conserve le meilleur essai.")
-
-        old_keys = [k for k in histories.keys() if "GradCAM" in k and f"({size} imgs)" in k]
-        for k in old_keys:
-            del histories[k]
-            if k in durations: del durations[k]
-            if k in models_out: del models_out[k]
-
-        final_name = f"GradCAM adaptatif (λ={best_lam}) ({size} imgs)"
-        histories[final_name] = best_h
-        models_out[final_name] = best_m
-        durations[final_name] = best_d
-        print(f"▶ Retenu : {final_name} avec test_acc={best_acc:.1f}%\n")
+            histories[name]   = h
+            models_out[name]  = m
+            durations[name]   = d
+            print(f"  ✓ {d:.1f}s - test_acc={h['test_acc'][-1]:.1f}%\n")
 
     # ---- Génération des visuels ----
     print("▶ Génération des visuels...")
 
-    # Déterminer les couleurs dynamiquement : Vert pour le gagnant, Rouge pour le perdant
+    # Couleurs dynamiques : pour chaque taille, le gagnant passe en vert ; les
+    # perdants gardent la couleur identitaire de leur stratégie (STRATEGY_COLORS).
+    import re
+    WINNER_COLOR = '#4CAF50'  # vert
+
+    def base_key(model_name):
+        """Extrait la clé sans la taille : 'Guided GradCAM (λ=0.3) (500 imgs)' -> 'Guided GradCAM (λ=0.3)'."""
+        return re.sub(r' \(\d+ imgs\)$', '', model_name)
+
     dynamic_colors = {}
     dynamic_styles = {}
-    
+
     for size in [750, 500, 250, 200, 150, 100, 50, 25]:
-        norm_name = f"Normal ({size} imgs)"
-        gc_name = next((k for k in histories.keys() if "GradCAM" in k and f"({size} imgs)" in k), None)
-        
-        if norm_name in histories and gc_name in histories:
-            acc_norm = histories[norm_name]['test_acc'][-1]
-            acc_gc = histories[gc_name]['test_acc'][-1]
-            
-            if acc_gc > acc_norm:
-                dynamic_colors[gc_name] = '#4CAF50'     # Vert (Gagnant)
-                dynamic_colors[norm_name] = '#F44336'   # Rouge (Perdant)
-            elif acc_norm > acc_gc:
-                dynamic_colors[norm_name] = '#4CAF50'   # Vert (Gagnant)
-                dynamic_colors[gc_name] = '#F44336'     # Rouge (Perdant)
+        candidates = [k for k in histories.keys() if f"({size} imgs)" in k]
+        if not candidates:
+            continue
+
+        winner = max(candidates, key=lambda k: histories[k]['test_acc'][-1])
+
+        for name in candidates:
+            if name == winner:
+                dynamic_colors[name] = WINNER_COLOR
             else:
-                dynamic_colors[norm_name] = '#FF9800'   # Orange (Égalité)
-                dynamic_colors[gc_name] = '#FF9800'
-                
-            dynamic_styles[norm_name] = '-'
-            dynamic_styles[gc_name] = '--'
-        else:
-            if norm_name in histories:
-                dynamic_colors[norm_name] = '#2196F3'
-                dynamic_styles[norm_name] = '-'
-            if gc_name in histories:
-                dynamic_colors[gc_name] = '#9C27B0'
-                dynamic_styles[gc_name] = '--'
+                dynamic_colors[name] = STRATEGY_COLORS.get(base_key(name), '#888')
+            dynamic_styles[name] = '-' if 'Normal' in name else '--'
 
     def get_dynamic_color_and_style(name, idx):
         return dynamic_colors.get(name, '#000000'), dynamic_styles.get(name, '-')

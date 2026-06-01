@@ -34,7 +34,7 @@ def compute_metrics_manual(labels, preds):
     }
 
 
-def compute_iou(pred_map, gt_map, threshold=0.5):
+def compute_iou(pred_map, gt_map, threshold=0.3):
     """IoU entre deux heatmaps après binarisation."""
     pred_binary = (pred_map >= threshold).astype(float)
     gt_binary = (gt_map >= threshold).astype(float)

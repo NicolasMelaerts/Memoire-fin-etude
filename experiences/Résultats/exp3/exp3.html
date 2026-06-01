@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expérience 3 - Analyse Normal vs GradCAM</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f1117;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a1f36 0%, #0f1117 100%);
+            border-bottom: 1px solid #2a2f45;
+            padding: 32px 40px;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: #8892a4;
+            font-size: 0.95rem;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .section {
+            background: #1a1f2e;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid #2a2f45;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #2a2f45;
+        }
+
+        /* Tableau */
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #141824;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .metrics-table th, .metrics-table td {
+            padding: 14px 18px;
+            text-align: left;
+            border-bottom: 1px solid #2a2f45;
+        }
+
+        .metrics-table th {
+            background: #232838;
+            color: #8892a4;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metrics-table tr:hover {
+            background: #1f2438;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            color: #3F51B5;
+        }
+
+        .metrics-table tr.best { background-color: #1a3a1a !important; }
+        .metrics-table tr.best:hover { background-color: #1f4a1f !important; }
+
+        .metric-value.best-value {
+            color: #4CAF50;
+            background-color: #1a3a1a;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        /* Graphiques */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .chart-box {
+            background: #141824;
+            border-radius: 10px;
+            padding: 24px;
+            border: 1px solid #2a2f45;
+        }
+
+        .chart-box h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #aab;
+            margin-bottom: 16px;
+        }
+
+        .chart-box canvas {
+            max-height: 300px;
+        }
+
+        /* Section IoU hero */
+        .iou-canvas-wrap { height: 300px; }
+        .section-sub { color: #8892a4; font-size: 0.9rem; line-height: 1.55; margin-bottom: 16px; }
+
+        /* Matrices de confusion (taille compacte) */
+        .confusion-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 20px;
+        }
+
+        .confusion-box {
+            background: #141824;
+            border-radius: 10px;
+            padding: 18px;
+            border: 1px solid #2a2f45;
+        }
+
+        .confusion-box h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .confusion-matrix {
+            display: grid;
+            grid-template-columns: 60px 1fr 1fr;
+            grid-template-rows: 32px 1fr 1fr;
+            gap: 2px;
+            max-width: 320px;
+            margin: 0 auto;
+        }
+
+        .cm-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            color: #8892a4;
+            font-weight: 600;
+        }
+
+        .cm-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #232838;
+            border-radius: 6px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            min-height: 80px;
+        }
+
+        .cm-cell.tn { background: #1a3a1a; color: #4CAF50; }
+        .cm-cell.fp { background: #3a1a1a; color: #f44336; }
+        .cm-cell.fn { background: #3a1a1a; color: #f44336; }
+        .cm-cell.tp { background: #1a3a1a; color: #4CAF50; }
+
+        .cm-metrics {
+            margin-top: 20px;
+            padding: 15px;
+            background: #232838;
+            border-radius: 8px;
+        }
+
+        .cm-metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .cm-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: #141824;
+            border-radius: 4px;
+        }
+
+        .cm-metric-label {
+            color: #8892a4;
+            font-size: 0.85rem;
+        }
+
+        .cm-metric-value {
+            color: #fff;
+            font-weight: 600;
+        }
+
+
+        /* ===== Hero IoU ===== */
+        .iou-hero {
+            background: linear-gradient(135deg, #1a3a1a 0%, #1a1f2e 100%);
+            border: 1px solid #4CAF50;
+            border-radius: 12px;
+            padding: 26px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(76, 175, 80, 0.18);
+        }
+        .iou-hero-title {
+            font-size: 0.85rem;
+            color: #b9f6ca;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .iou-hero-headline {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        .iou-hero-headline .factor {
+            color: #4CAF50;
+            font-size: 2.4rem;
+            font-family: 'Menlo', 'Consolas', monospace;
+        }
+        .iou-hero-sub {
+            color: #aab;
+            font-size: 0.9rem;
+            margin-bottom: 22px;
+        }
+        .iou-bar-row {
+            display: grid;
+            grid-template-columns: 200px 1fr 110px;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 12px;
+        }
+        .iou-bar-row .name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-align: right;
+        }
+        .iou-bar-track {
+            background: #232838;
+            border-radius: 8px;
+            height: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+        .iou-bar-fill {
+            height: 100%;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            padding-left: 12px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #fff;
+            transition: width 0.4s ease-out;
+        }
+        .iou-bar-fill.normal   { background: linear-gradient(90deg, #F44336, #FF7043); }
+        .iou-bar-fill.gradcam  { background: linear-gradient(90deg, #4CAF50, #8BC34A); }
+        .iou-bar-value {
+            font-family: 'Menlo', 'Consolas', monospace;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #e0e0e0;
+        }
+        .iou-bar-value .std {
+            color: #8892a4;
+            font-size: 0.78rem;
+            font-weight: 400;
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <h1>📊 Expérience 3 : Analyse Détaillée Normal vs GradCAM</h1>
+        <p>Comparaison complète avec métriques de classification et localisation (IoU)</p>
+    </header>
+
+    <div class="container">
+        <!-- SECTION IoU (hero, métrique clé) -->
+        <div class="section">
+            <div class="section-title">Qualité de la localisation (IoU)</div>
+            <div class="iou-canvas-wrap"><canvas id="chart-hero-iou"></canvas></div>
+        </div>
+
+        <!-- SECTION TABLEAU RÉCAPITULATIF -->
+        <div class="section">
+            <div class="section-title">📋 Tableau récapitulatif des performances</div>
+            <table class="metrics-table" id="main-table">
+                <thead>
+                    <tr>
+                        <th>Modèle</th>
+                        <th>Test Accuracy (%)</th>
+                        <th>Train Accuracy (%)</th>
+                        <th>Test Loss</th>
+                        <th>Train Loss</th>
+                        <th>Precision</th>
+                        <th>Recall</th>
+                        <th>F1-Score</th>
+                        <th>IoU (Mean)</th>
+                        <th>Durée (s)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- SECTION MATRICES DE CONFUSION -->
+        <div class="section">
+            <div class="section-title">🔢 Matrices de confusion</div>
+            <div class="confusion-grid" id="confusion-grid"></div>
+        </div>
+
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        // Couleurs calquées sur experiences/shared/config.py
+        const STRATEGY_COLORS = {
+            'Normal':                  '#2196F3',
+            'Guided GradCAM (λ=0.1)':  '#CE93D8',
+            'Guided GradCAM (λ=0.3)':  '#9C27B0',
+            'Guided GradCAM (λ=0.5)':  '#6A1B9A',
+        };
+        const FALLBACK_PALETTE = ['#2196F3', '#CE93D8', '#9C27B0', '#6A1B9A', '#4CAF50'];
+        const colorFor = (name, idx) => STRATEGY_COLORS[name] || FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length];
+        const shortLabel = name => name.replace(/Guided GradCAM \(λ=([\d.]+)\)/, 'Guided GradCAM λ=$1');
+
+        let metricsData;
+
+        // Configuration Chart.js
+        Chart.defaults.color = '#8892a4';
+        Chart.defaults.borderColor = '#2a2f45';
+
+        // Plugin : afficher la valeur (et un écart-type optionnel) au-dessus de chaque barre
+        const valueLabelsPlugin = {
+            id: 'valueLabels',
+            afterDatasetsDraw(chart, args, opts) {
+                const { ctx } = chart;
+                const decimals = opts.decimals ?? 1;
+                const suffix   = opts.suffix   ?? '';
+                const subValues = opts.subValues || null;
+                ctx.save();
+                ctx.textAlign = 'center';
+                chart.data.datasets.forEach((ds, di) => {
+                    if (!chart.isDatasetVisible(di)) return;
+                    const meta = chart.getDatasetMeta(di);
+                    meta.data.forEach((bar, i) => {
+                        const v = ds.data[i];
+                        if (v == null || isNaN(v)) return;
+                        ctx.textBaseline = 'bottom';
+                        ctx.font = '700 12px "Segoe UI", system-ui, sans-serif';
+                        ctx.fillStyle = '#e0e0e0';
+                        const yTop = bar.y - (subValues ? 16 : 4);
+                        ctx.fillText(`${v.toFixed(decimals)}${suffix}`, bar.x, yTop);
+                        if (subValues && subValues[i] != null) {
+                            ctx.font = '400 10px "Segoe UI", system-ui, sans-serif';
+                            ctx.fillStyle = '#8892a4';
+                            ctx.fillText(`± ${subValues[i].toFixed(decimals)}${suffix}`, bar.x, bar.y - 2);
+                        }
+                    });
+                });
+                ctx.restore();
+            }
+        };
+
+        // Initialisation au chargement de la page
+        window.addEventListener('DOMContentLoaded', () => {
+            metricsData = window.RESULTS_DATA;
+            buildIoUChart();
+            updateTable();
+            createConfusionMatrices();
+        });
+
+        // ---- Chart IoU : barres verticales par modèle ----
+        function buildIoUChart() {
+            const lambdaOf = name => {
+                const m = name.match(/λ\s*=\s*([\d.]+)/);
+                return m ? parseFloat(m[1]) : -1;
+            };
+            const models = Object.keys(metricsData).sort((a, b) => {
+                if (/Normal/i.test(a)) return -1;
+                if (/Normal/i.test(b)) return 1;
+                return lambdaOf(a) - lambdaOf(b);
+            });
+            const ious     = models.map(m => metricsData[m].detailed_metrics?.iou ?? null);
+            const iouStds  = models.map(m => metricsData[m].detailed_metrics?.iou_std ?? null);
+
+            // Winner = max IoU
+            let winnerIdx = -1, bestIoU = -Infinity;
+            ious.forEach((v, i) => { if (v != null && v > bestIoU) { bestIoU = v; winnerIdx = i; } });
+
+            const iousPct    = ious.map(v => v == null ? null : v * 100);
+            const iouStdsPct = iouStds.map(v => v == null ? null : v * 100);
+
+            const backgroundColor = models.map((m, i) => colorFor(m, i));
+            const borderColor     = models.map((m, i) => i === winnerIdx ? '#FFD54F' : colorFor(m, i));
+            const borderWidth     = models.map((m, i) => i === winnerIdx ? 3.5 : 0);
+
+            new Chart(document.getElementById('chart-hero-iou').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: models.map(shortLabel),
+                    datasets: [{
+                        label: 'IoU',
+                        data: iousPct,
+                        backgroundColor,
+                        borderColor,
+                        borderWidth,
+                        borderRadius: 6,
+                        categoryPercentage: 0.7,
+                        barPercentage: 0.82,
+                    }]
+                },
+                plugins: [valueLabelsPlugin],
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { top: 34 } },
+                    scales: {
+                        x: {
+                            ticks: { color: '#c8d0db', font: { size: 12, weight: '600' } },
+                            grid: { display: false },
+                        },
+                        y: {
+                            title: { display: true, text: 'IoU (%)', color: '#aab' },
+                            ticks: { color: '#8892a4', callback: v => v + ' %' },
+                            grid: { color: '#2a2f45' },
+                            beginAtZero: true,
+                        }
+                    },
+                    plugins: {
+                        valueLabels: { decimals: 1, suffix: ' %', subValues: iouStdsPct },
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: items => items[0].label,
+                                label: ctx => {
+                                    const iou = ious[ctx.dataIndex];
+                                    const std = iouStds[ctx.dataIndex];
+                                    return `IoU = ${iou.toFixed(4)} ± ${std.toFixed(4)}` +
+                                        (ctx.dataIndex === winnerIdx ? '  ★ winner' : '');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+
+        function updateTable() {
+            const tbody = document.querySelector('#main-table tbody');
+            tbody.innerHTML = '';
+
+            const models = Object.keys(metricsData);
+
+            // Créer les lignes
+            models.sort((a, b) => a.includes('Normal') ? -1 : 1);
+            models.forEach(model => {
+                const data = metricsData[model];
+                const hist = data.history;
+                const detailed = data.detailed_metrics;
+                const duration = data.duration;
+
+                const testAcc = hist.test_acc[hist.test_acc.length - 1];
+                const trainAcc = hist.train_acc[hist.train_acc.length - 1];
+                const testLoss = hist.test_loss[hist.test_loss.length - 1];
+                const trainLoss = hist.train_loss[hist.train_loss.length - 1];
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${model}</strong></td>
+                    <td><span class="metric-value">${testAcc.toFixed(2)}</span></td>
+                    <td><span class="metric-value">${trainAcc.toFixed(2)}</span></td>
+                    <td><span class="metric-value">${testLoss.toFixed(4)}</span></td>
+                    <td><span class="metric-value">${trainLoss.toFixed(4)}</span></td>
+                    <td><span class="metric-value">${detailed.precision.toFixed(3)}</span></td>
+                    <td><span class="metric-value">${detailed.recall.toFixed(3)}</span></td>
+                    <td><span class="metric-value">${detailed.f1.toFixed(3)}</span></td>
+                    <td><span class="metric-value">${detailed.iou !== null ? detailed.iou.toFixed(3) + ' ± ' + detailed.iou_std.toFixed(3) : 'N/A'}</span></td>
+                    <td><span class="metric-value">${duration.toFixed(1)}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+
+
+        function createConfusionMatrices() {
+            const grid = document.getElementById('confusion-grid');
+            grid.innerHTML = '';
+
+            const models = Object.keys(metricsData).sort((a, b) => a.includes('Normal') ? -1 : 1);
+
+            models.forEach(model => {
+                const data = metricsData[model];
+                const cm = data.detailed_metrics.confusion_matrix;
+                const metrics = data.detailed_metrics;
+
+                const box = document.createElement('div');
+                box.className = 'confusion-box';
+
+                const tn = cm[0][0], fp = cm[0][1];
+                const fn = cm[1][0], tp = cm[1][1];
+
+                box.innerHTML = `
+                    <h3>${model}</h3>
+                    <div class="confusion-matrix">
+                        <div class="cm-label"></div>
+                        <div class="cm-label">Prédit: Outside</div>
+                        <div class="cm-label">Prédit: Inside</div>
+
+                        <div class="cm-label">Réel: Outside</div>
+                        <div class="cm-cell tn">${tn}</div>
+                        <div class="cm-cell fp">${fp}</div>
+
+                        <div class="cm-label">Réel: Inside</div>
+                        <div class="cm-cell fn">${fn}</div>
+                        <div class="cm-cell tp">${tp}</div>
+                    </div>
+                    <div class="cm-metrics">
+                        <div class="cm-metrics-grid">
+                            <div class="cm-metric">
+                                <span class="cm-metric-label">Accuracy</span>
+                                <span class="cm-metric-value">${(metrics.accuracy * 100).toFixed(2)}%</span>
+                            </div>
+                            <div class="cm-metric">
+                                <span class="cm-metric-label">Precision</span>
+                                <span class="cm-metric-value">${(metrics.precision * 100).toFixed(2)}%</span>
+                            </div>
+                            <div class="cm-metric">
+                                <span class="cm-metric-label">Recall</span>
+                                <span class="cm-metric-value">${(metrics.recall * 100).toFixed(2)}%</span>
+                            </div>
+                            <div class="cm-metric">
+                                <span class="cm-metric-label">F1-Score</span>
+                                <span class="cm-metric-value">${(metrics.f1 * 100).toFixed(2)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                grid.appendChild(box);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expérience 1 - Comparaison des Stratégies d'Entraînement</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f1117;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a1f36 0%, #0f1117 100%);
+            border-bottom: 1px solid #2a2f45;
+            padding: 32px 40px;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: #8892a4;
+            font-size: 0.95rem;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .section {
+            background: #1a1f2e;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid #2a2f45;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #2a2f45;
+        }
+
+        /* Filtres */
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            background: #141824;
+            padding: 8px 14px;
+            border-radius: 6px;
+            border: 1px solid #2a2f45;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-item:hover {
+            background: #1f2438;
+            border-color: #3F51B5;
+        }
+
+        .filter-item input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+        }
+
+        .filter-item label {
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: #e0e0e0;
+        }
+
+        /* Tableau */
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #141824;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .metrics-table th, .metrics-table td {
+            padding: 14px 18px;
+            text-align: left;
+            border-bottom: 1px solid #2a2f45;
+        }
+
+        .metrics-table th {
+            background: #232838;
+            color: #8892a4;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metrics-table tr:hover {
+            background: #1f2438;
+        }
+
+        .metrics-table tr[data-model] {
+            transition: opacity 0.3s;
+        }
+
+        .metrics-table tr[data-model].hidden {
+            display: none;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            color: #3F51B5;
+        }
+
+        .metrics-table tr.best { background-color: #1a3a1a !important; }
+        .metrics-table tr.best:hover { background-color: #1f4a1f !important; }
+
+        .metric-value.best-value {
+            color: #4CAF50;
+            background-color: #1a3a1a;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        /* Graphiques */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .chart-box {
+            background: #141824;
+            border-radius: 10px;
+            padding: 24px;
+            border: 1px solid #2a2f45;
+        }
+
+        .chart-box h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #aab;
+            margin-bottom: 16px;
+        }
+
+        .chart-box canvas {
+            max-height: 300px;
+        }
+
+        /* Galerie GradCAM */
+        #gallery {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            margin-top: 24px;
+        }
+
+        .gallery-card {
+            background: #141824;
+            border-radius: 8px;
+            border: 1px solid #2a2f45;
+            padding: 20px;
+        }
+
+        .gallery-header {
+            background: #232838;
+            padding: 10px 14px;
+            font-weight: 600;
+            color: #fff;
+            font-size: 0.9rem;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .gallery-original {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .gallery-original-item {
+            text-align: center;
+        }
+
+        .gallery-original img {
+            max-width: 300px;
+            border-radius: 6px;
+            border: 2px solid #8892a4;
+        }
+
+        .gallery-original .label {
+            font-size: 0.9rem;
+            color: #fff;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+
+        .gallery-predictions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .gallery-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            width: 180px;
+        }
+
+        .gallery-item img {
+            display: block;
+            width: 180px;
+            height: 180px;
+            object-fit: contain;
+            border-radius: 6px;
+            border: 2px solid #2a2f45;
+        }
+
+        .gallery-item .label {
+            font-size: 0.75rem;
+            color: #8892a4;
+            margin-top: 6px;
+            font-weight: 600;
+        }
+
+        .gallery-item .img-sublabel {
+            font-size: 0.65rem;
+            color: #6b7280;
+            margin-top: 2px;
+            margin-bottom: 6px;
+            font-style: italic;
+        }
+
+        .gallery-item .prediction {
+            font-size: 0.7rem;
+            margin-top: 4px;
+        }
+
+        .gallery-item .prediction.correct {
+            color: #4CAF50;
+        }
+
+        .gallery-item .prediction.incorrect {
+            color: #f44336;
+        }
+
+        .gallery-original .true-label {
+            font-size: 0.85rem;
+            color: #FFD700;
+            margin-top: 6px;
+            font-weight: 600;
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <h1>📊 Expérience 1 : Comparaison des Stratégies d'Entraînement</h1>
+        <p>Baseline Normal vs Double Backpropagation vs Guided GradCAM vs GAIN (10 modèles)</p>
+    </header>
+
+    <div class="container">
+        <!-- SECTION FILTRES -->
+        <div class="section">
+            <div class="section-title">🔍 Filtrer les modèles</div>
+            <div class="filters" id="filters"></div>
+        </div>
+
+        <!-- SECTION TABLEAU -->
+        <div class="section">
+            <div class="section-title">📋 Résultats finaux</div>
+            <table class="metrics-table" id="main-table">
+                <thead>
+                    <tr>
+                        <th>Modèle</th>
+                        <th>Test Accuracy (%)</th>
+                        <th>Train Accuracy (%)</th>
+                        <th>Test Loss</th>
+                        <th>Train Loss</th>
+                        <th>Durée (s)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- SECTION COURBES -->
+        <div class="section">
+            <div class="section-title">📈 Courbes d'apprentissage</div>
+            <div class="charts-grid">
+                <div class="chart-box">
+                    <h3>Test Accuracy</h3>
+                    <canvas id="chart-test-acc"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3>Train Accuracy</h3>
+                    <canvas id="chart-train-acc"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3>Test Loss</h3>
+                    <canvas id="chart-test-loss"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3>Train Loss</h3>
+                    <canvas id="chart-train-loss"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION PÉNALITÉS -->
+        <div class="section">
+            <div class="section-title">📉 Pénalités de régularisation</div>
+            <p style="color: #8892a4; margin-bottom: 16px; font-size: 0.9rem;">
+                Chaque stratégie ajoute un terme de pénalité à la cross-entropy :
+                <code style="background: #232838; padding: 2px 6px; border-radius: 3px;">train_loss = train_ce + λ × pénalité</code>.
+                Les graphiques ci-dessous montrent l'évolution de cette pénalité au fil des époques (terme brut), ainsi que sa contribution effective à la loss (terme pondéré par λ).
+            </p>
+            <table class="metrics-table" id="lambda-table" style="margin-bottom: 24px;">
+                <thead>
+                    <tr>
+                        <th>Stratégie</th>
+                        <th>Terme de pénalité</th>
+                        <th>λ</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="charts-grid">
+                <div class="chart-box">
+                    <h3>Pénalité brute par stratégie</h3>
+                    <canvas id="chart-penalty-raw"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3>Contribution à la loss (λ × pénalité)</h3>
+                    <canvas id="chart-penalty-weighted"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION GALERIE -->
+        <div class="section">
+            <div class="section-title">🖼️ Comparaisons GradCAM</div>
+            <p style="color: #8892a4; margin-bottom: 20px; text-align: center;">
+                Pour chaque échantillon : Image originale + Ground Truth Heatmap (pour classe positive) puis prédictions GradCAM de tous les modèles
+            </p>
+            <div id="gallery"></div>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        // Palette de couleurs pour les 10 modèles
+        // Couleurs calquées sur experiences/shared/config.py (STRATEGY_COLORS)
+        const STRATEGY_COLORS = {
+            'Normal':                   '#2196F3',
+            'Double BP':                '#FF9800',
+            'Guided GradCAM':           '#9C27B0',
+            'GAIN':                     '#4CAF50',
+            'RRR':                      '#F44336',
+            // Variants par lambda (exp1)
+            'Double BP (λ=200.0)':      '#FF9800',
+            'GAIN (λ=0.1)':             '#4CAF50',
+            'RRR (λ=0.1)':              '#F44336',
+            'Guided GradCAM (λ=0.1)':   '#CE93D8',
+            'Guided GradCAM (λ=0.3)':   '#9C27B0',
+            'Guided GradCAM (λ=0.5)':   '#6A1B9A',
+        };
+        const FALLBACK_PALETTE = [
+            '#2196F3', '#FF9800', '#FF5722', '#F44336', '#E91E63',
+            '#9C27B0', '#673AB7', '#3F51B5', '#4CAF50', '#8BC34A'
+        ];
+        function getStrategyColor(model, idx) {
+            return STRATEGY_COLORS[model] || FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length];
+        }
+
+        // Configuration Chart.js
+        Chart.defaults.color = '#8892a4';
+        Chart.defaults.borderColor = '#2a2f45';
+
+        // État des filtres
+        let visibleModels = new Set();
+        let metricsData;
+
+        // Mapping stratégie → clé de pénalité dans l'historique
+        function getPenaltyKey(modelName) {
+            if (modelName.includes('Double BP')) return 'grad_penalty';
+            if (modelName.includes('GradCAM'))   return 'loc_loss';
+            if (modelName.includes('GAIN'))      return 'am_loss';
+            if (modelName.includes('RRR'))       return 'rrr_penalty';
+            return null; // Normal n'a pas de pénalité
+        }
+
+        // Extraction du λ à partir du nom de modèle ("Double BP (λ=50.0)" → 50)
+        function getLambda(modelName) {
+            const m = modelName.match(/λ\s*=\s*([0-9.]+)/);
+            return m ? parseFloat(m[1]) : null;
+        }
+
+        // Initialisation
+        window.addEventListener('DOMContentLoaded', () => {
+            metricsData = window.globalMetrics;
+            const models = Object.keys(metricsData.histories);
+            visibleModels = new Set(models);
+
+            createFilters();
+            updateTable();
+            updateLambdaTable();
+            updateCharts();
+            createGallery();
+        });
+
+        function updateLambdaTable() {
+            const tbody = document.querySelector('#lambda-table tbody');
+            tbody.innerHTML = '';
+            const models = Object.keys(metricsData.histories).sort((a, b) => {
+                if (a === 'Normal') return -1;
+                if (b === 'Normal') return 1;
+                return a.localeCompare(b);
+            });
+
+            models.forEach(model => {
+                const penaltyKey = getPenaltyKey(model);
+                const lambda = getLambda(model);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${model}</strong></td>
+                    <td><code style="background: #232838; padding: 2px 6px; border-radius: 3px;">${penaltyKey || '—'}</code></td>
+                    <td><span class="metric-value">${lambda !== null ? lambda : '—'}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function createFilters() {
+            const filtersDiv = document.getElementById('filters');
+            const models = Object.keys(metricsData.histories);
+
+            // Trier : Normal en premier
+            models.sort((a, b) => {
+                if (a === 'Normal') return -1;
+                if (b === 'Normal') return 1;
+                return a.localeCompare(b);
+            });
+
+            models.forEach(model => {
+                const div = document.createElement('div');
+                div.className = 'filter-item';
+                div.innerHTML = `
+                    <input type="checkbox" id="filter-${model}" checked onchange="toggleModel('${model}')">
+                    <label for="filter-${model}">${model}</label>
+                `;
+                filtersDiv.appendChild(div);
+            });
+        }
+
+        function toggleModel(model) {
+            if (visibleModels.has(model)) {
+                visibleModels.delete(model);
+            } else {
+                visibleModels.add(model);
+            }
+            updateTable();
+            updateCharts();
+        }
+
+        function updateTable() {
+            const tbody = document.querySelector('#main-table tbody');
+            tbody.innerHTML = '';
+
+            const models = Object.keys(metricsData.histories);
+
+
+            // Trier : Normal en premier
+            models.sort((a, b) => {
+                if (a === 'Normal') return -1;
+                if (b === 'Normal') return 1;
+                return a.localeCompare(b);
+            });
+
+            // Créer les lignes
+            models.forEach(model => {
+                const hist = metricsData.histories[model];
+                const duration = metricsData.durations[model];
+                const testAcc = hist.test_acc[hist.test_acc.length - 1];
+                const trainAcc = hist.train_acc[hist.train_acc.length - 1];
+                const testLoss = hist.test_loss[hist.test_loss.length - 1];
+                const trainLoss = hist.train_loss[hist.train_loss.length - 1];
+
+                const tr = document.createElement('tr');
+                tr.setAttribute('data-model', model);
+                if (!visibleModels.has(model)) tr.classList.add('hidden');
+
+                tr.innerHTML = `
+                    <td><strong>${model}</strong></td>
+                    <td><span class="metric-value">${testAcc.toFixed(2)}</span></td>
+                    <td><span class="metric-value">${trainAcc.toFixed(2)}</span></td>
+                    <td><span class="metric-value">${testLoss.toFixed(4)}</span></td>
+                    <td><span class="metric-value">${trainLoss.toFixed(4)}</span></td>
+                    <td><span class="metric-value">${duration.toFixed(1)}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        let charts = {};
+
+        function updateCharts() {
+            const models = Object.keys(metricsData.histories).filter(m => visibleModels.has(m));
+
+            // Trier : Normal en premier
+            models.sort((a, b) => {
+                if (a === 'Normal') return -1;
+                if (b === 'Normal') return 1;
+                return a.localeCompare(b);
+            });
+
+            const epochs = metricsData.histories[models[0]].train_acc.length;
+            const labels = Array.from({length: epochs}, (_, i) => i + 1);
+
+            // Détruire les anciens graphiques
+            Object.values(charts).forEach(chart => chart.destroy());
+            charts = {};
+
+            // Test Accuracy
+            charts['test-acc'] = createChart('chart-test-acc', labels, models.map((model, idx) => ({
+                label: model,
+                data: metricsData.histories[model].test_acc,
+                borderColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)),
+                backgroundColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)) + '33',
+                borderWidth: 2,
+                tension: 0.3
+            })), 'Accuracy (%)', false, 100);
+
+            // Train Accuracy
+            charts['train-acc'] = createChart('chart-train-acc', labels, models.map((model, idx) => ({
+                label: model,
+                data: metricsData.histories[model].train_acc,
+                borderColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)),
+                backgroundColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)) + '33',
+                borderWidth: 2,
+                tension: 0.3
+            })), 'Accuracy (%)', false, 100);
+
+            // Test Loss
+            charts['test-loss'] = createChart('chart-test-loss', labels, models.map((model, idx) => ({
+                label: model,
+                data: metricsData.histories[model].test_loss,
+                borderColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)),
+                backgroundColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)) + '33',
+                borderWidth: 2,
+                tension: 0.3
+            })), 'Loss', true);
+
+            // Train Loss
+            charts['train-loss'] = createChart('chart-train-loss', labels, models.map((model, idx) => ({
+                label: model,
+                data: metricsData.histories[model].train_loss,
+                borderColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)),
+                backgroundColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)) + '33',
+                borderWidth: 2,
+                tension: 0.3
+            })), 'Loss', true);
+
+            // ─── Pénalités de régularisation ───
+            // Sélectionne les stratégies non-Normal qui ont une clé de pénalité présente
+            const penaltyModels = models.filter(m => {
+                const key = getPenaltyKey(m);
+                return key && metricsData.histories[m][key];
+            });
+
+            // Pénalité brute (terme avant pondération par λ)
+            charts['penalty-raw'] = createChart('chart-penalty-raw', labels, penaltyModels.map(model => {
+                const key = getPenaltyKey(model);
+                const lambda = getLambda(model);
+                return {
+                    label: `${model.replace(/\s*\(λ=[^)]+\)\s*/, '')} — ${key}`,
+                    data: metricsData.histories[model][key],
+                    borderColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)),
+                    backgroundColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)) + '33',
+                    borderWidth: 2,
+                    tension: 0.3
+                };
+            }), 'Pénalité (valeur brute)', true);
+
+            // λ × pénalité (contribution effective à la train loss)
+            charts['penalty-weighted'] = createChart('chart-penalty-weighted', labels, penaltyModels.map(model => {
+                const key = getPenaltyKey(model);
+                const lambda = getLambda(model) || 1;
+                const weighted = metricsData.histories[model][key].map(v => v * lambda);
+                return {
+                    label: `${model} — λ × ${key}`,
+                    data: weighted,
+                    borderColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)),
+                    backgroundColor: getStrategyColor(model, Object.keys(metricsData.histories).indexOf(model)) + '33',
+                    borderWidth: 2,
+                    tension: 0.3
+                };
+            }), 'λ × pénalité', true);
+        }
+
+        function createChart(id, labels, datasets, yLabel, beginAtZero = true, maxY = null) {
+            const ctx = document.getElementById(id).getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#8892a4',
+                                padding: 10,
+                                font: { size: 10 },
+                                boxWidth: 15
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero,
+                            max: maxY,
+                            title: { display: true, text: yLabel, color: '#aab' },
+                            grid: { color: '#2a2f45' },
+                            ticks: { color: '#8892a4' }
+                        },
+                        x: {
+                            title: { display: true, text: 'Epoch', color: '#aab' },
+                            grid: { color: '#2a2f45' },
+                            ticks: { color: '#8892a4' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createGallery() {
+            const gallery = document.getElementById('gallery');
+            gallery.innerHTML = '';
+
+            const examples = window.globalExamples || [];
+            const models = Object.keys(metricsData.histories);
+
+            // Trier : Normal en premier
+            models.sort((a, b) => {
+                if (a === 'Normal') return -1;
+                if (b === 'Normal') return 1;
+                return a.localeCompare(b);
+            });
+
+            examples.forEach((example, i) => {
+                const sampleId = String(i).padStart(2, '0');
+                const card = document.createElement('div');
+                card.className = 'gallery-card';
+
+                let modelsHTML = models.map(model => {
+                    const modelData = example.models[model] || {};
+                    const overlayPath = `gradcam_comparison/${modelData.cam_img || `sample_${sampleId}_${model}_cam.png`}`;
+                    const heatmapPath = `gradcam_comparison/${modelData.heatmap_img || `sample_${sampleId}_${model}_heatmap.png`}`;
+                    const predLabel = modelData.pred_label || 'N/A';
+                    const confidence = modelData.confidence || 'N/A';
+                    const correct = modelData.correct;
+                    const predClass = correct ? 'correct' : 'incorrect';
+
+                    return `
+                        <div class="gallery-item">
+                            <img src="${overlayPath}" alt="${model}" onerror="this.style.display='none'">
+                            <div class="img-sublabel">Overlay</div>
+                            <img src="${heatmapPath}" alt="${model} heatmap" onerror="this.style.display='none'; this.nextElementSibling.style.display='none'">
+                            <div class="img-sublabel">Heatmap pure</div>
+                            <div class="label">${model}</div>
+                            <div class="prediction ${predClass}">Pred: ${predLabel} (${confidence})</div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Construire la section images originales avec heatmap ground truth si disponible
+                const isPositive = example.true_label === 'Inside';
+                const imgName = example.img_name; // ex: "image_00288.png"
+                const heatmapName = imgName.replace('.png', '_heatmap.png');
+
+                let originalImagesHTML = `
+                    <div class="gallery-original-item">
+                        <img src="gradcam_comparison/${example.orig_img}" alt="Original">
+                        <div class="label">Image originale</div>
+                    </div>
+                `;
+
+                // Ajouter la heatmap ground truth pour les cas positifs (Inside/glioma)
+                if (isPositive) {
+                    const gtHeatmapName = 'gt_' + heatmapName;
+                    originalImagesHTML += `
+                        <div class="gallery-original-item">
+                            <img src="gradcam_comparison/${gtHeatmapName}"
+                                 alt="Ground Truth Heatmap"
+                                 onerror="console.error('Failed to load:', this.src); this.parentElement.style.display='none';">
+                            <div class="label">Ground Truth Heatmap</div>
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div class="gallery-header">Échantillon ${sampleId}</div>
+                    <div class="gallery-original">
+                        ${originalImagesHTML}
+                    </div>
+                    <div class="true-label" style="text-align: center; font-size: 0.85rem; color: #FFD700; margin-bottom: 16px; font-weight: 600;">
+                        Vrai label: ${example.true_label}
+                    </div>
+                    <div class="gallery-predictions">
+                        ${modelsHTML}
+                    </div>
+                `;
+
+                gallery.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expérience 2 · Nouveau format mémoire</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f1117;
+            color: #e0e0e0;
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+        header {
+            background: linear-gradient(135deg, #1a1f36 0%, #0f1117 100%);
+            border-bottom: 1px solid #2a2f45;
+            padding: 28px 40px;
+        }
+        header h1 { font-size: 1.7rem; font-weight: 700; color: #fff; margin-bottom: 6px; }
+        header p  { color: #8892a4; font-size: 0.92rem; }
+        .container { max-width: 1500px; margin: 0 auto; padding: 28px 24px; }
+
+        .section {
+            background: #1a1f2e;
+            border-radius: 10px;
+            padding: 28px 30px;
+            margin-bottom: 26px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid #2a2f45;
+        }
+        .section-title {
+            font-size: 1.18rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #2a2f45;
+        }
+        .section-sub {
+            color: #8892a4;
+            font-size: 0.85rem;
+            margin-bottom: 18px;
+            margin-top: -10px;
+        }
+
+        /* === Section méthodologie compacte (1 ligne) === */
+        .method-strip {
+            background: linear-gradient(90deg, #141824 0%, #1a1f2e 100%);
+            border-left: 4px solid #2196F3;
+            border-radius: 8px;
+            padding: 14px 20px;
+            margin-bottom: 26px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            font-size: 0.86rem;
+        }
+        .method-cell { color: #aab; }
+        .method-cell strong { color: #fff; display: block; font-size: 0.78rem; letter-spacing: 0.04em; margin-bottom: 3px; font-weight: 700; }
+
+        /* === Headline chart hero === */
+        .hero-card {
+            background: linear-gradient(135deg, #1a1f2e 0%, #0f1117 100%);
+            border: 1px solid #2a2f45;
+            border-radius: 12px;
+            padding: 22px 26px;
+            margin-bottom: 26px;
+        }
+        .hero-card .label {
+            font-size: 0.78rem;
+            color: #8892a4;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .hero-card .headline { font-size: 1.35rem; font-weight: 700; color: #fff; margin-bottom: 14px; }
+        .hero-canvas-wrap { height: 360px; }
+
+        /* === Tableau récap (style aligné sur exp1.html .metrics-table) === */
+        .recap-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #141824;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .recap-table th, .recap-table td {
+            padding: 14px 18px;
+            text-align: left;
+            border-bottom: 1px solid #2a2f45;
+        }
+        .recap-table th {
+            background: #232838;
+            color: #8892a4;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .recap-table tr:hover { background: #1f2438; }
+        .recap-table tr.size-group-start td { border-top: 2px solid #3a4060; }
+        .recap-table td.size-cell {
+            font-weight: 700;
+            color: #c8d0db;
+            background: #1a1f30;
+        }
+        .recap-cell-winner,
+        .recap-cell-loser { color: inherit; }
+        .recap-delta-pos  { color: #4CAF50; font-weight: 700; }
+        .recap-delta-neg  { color: #f44336; font-weight: 700; }
+        .recap-delta-zero { color: #8892a4; font-weight: 600; }
+        .recap-size {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 4px;
+            background: #232838;
+            font-family: 'Menlo', 'Consolas', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        /* === Mini-charts résumé === */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+        }
+        .summary-card {
+            background: #141824;
+            border-radius: 8px;
+            padding: 16px 18px;
+            border: 1px solid #2a2f45;
+        }
+        .summary-card h3 {
+            font-size: 0.9rem;
+            color: #aab;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .summary-card .canvas-wrap { height: 240px; }
+
+        /* === Détails (collapsible) === */
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+        }
+        details.size-detail {
+            background: #141824;
+            border-radius: 8px;
+            border: 1px solid #2a2f45;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        details.size-detail[open] { border-color: #3a4f6a; }
+        details.size-detail > summary {
+            cursor: pointer;
+            padding: 14px 18px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: #e0e0e0;
+            background: #1a1f2e;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        details.size-detail > summary::after {
+            content: '▸';
+            font-size: 0.9rem;
+            color: #8892a4;
+            transition: transform 0.18s;
+        }
+        details.size-detail[open] > summary::after { transform: rotate(90deg); }
+        details.size-detail .details-body { padding: 14px 18px; }
+        .mini-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+            margin-bottom: 14px;
+        }
+        .mini-table th, .mini-table td {
+            padding: 7px 10px;
+            text-align: right;
+            border-bottom: 1px solid #2a2f45;
+        }
+        .mini-table th:first-child, .mini-table td:first-child { text-align: left; }
+        .mini-table th { color: #8892a4; font-weight: 600; font-size: 0.75rem; }
+        .mini-table tr.winner-row td { background: #1a3a1a; color: #b9f6ca; font-weight: 700; }
+        .mini-canvas-wrap { height: 200px; }
+
+        /* === Galerie GradCAM sélective === */
+        .gallery-strip {
+            background: #141824;
+            border-radius: 8px;
+            border: 1px solid #2a2f45;
+            padding: 16px 18px;
+            margin-bottom: 16px;
+        }
+        .gallery-strip .strip-title {
+            color: #e0e0e0;
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .strip-title .badge {
+            background: #232838;
+            color: #aab;
+            padding: 3px 9px;
+            border-radius: 4px;
+            font-size: 0.72rem;
+            font-weight: 500;
+        }
+        .gallery-row {
+            display: grid;
+            grid-template-columns: 100px repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+        .gallery-row .row-label {
+            color: #aab;
+            font-weight: 600;
+            font-size: 0.82rem;
+            text-align: right;
+            padding-right: 6px;
+        }
+        .gallery-cell {
+            text-align: center;
+            background: #0f1117;
+            border-radius: 6px;
+            padding: 6px;
+            position: relative;
+        }
+        .gallery-cell img {
+            width: 100%;
+            max-width: 130px;
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #2a2f45;
+            display: block;
+            margin: 0 auto;
+        }
+        .gallery-cell .pred {
+            font-size: 0.7rem;
+            margin-top: 4px;
+            color: #aab;
+            line-height: 1.2;
+        }
+        .gallery-cell .pred.correct { color: #4CAF50; }
+        .gallery-cell .pred.wrong   { color: #f44336; }
+        .gallery-cell .lambda-tag {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            font-size: 0.66rem;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+        .gallery-row-header {
+            display: grid;
+            grid-template-columns: 100px repeat(4, 1fr);
+            gap: 8px;
+            font-size: 0.74rem;
+            color: #8892a4;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-bottom: 6px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #2a2f45;
+        }
+        .gallery-row-header div { text-align: center; }
+        .gallery-row-header .row-label { text-align: right; padding-right: 6px; }
+
+        code {
+            background: #232838;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-family: 'Menlo', 'Consolas', monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>📊 Expérience 2 — Influence du régime de données</h1>
+        <p>Normal vs Guided GradCAM (λ=0.1, 0.3) sur 8 tailles de dataset, du plein régime (750 images) au régime de carence (25 images).</p>
+    </header>
+
+    <div class="container">
+
+        <!-- ============== MÉTHODOLOGIE COMPACTE ============== -->
+        <div class="method-strip">
+            <div class="method-cell"><strong>Setup</strong> SimpleCNN · Adam · CE pure + λ·loc</div>
+            <div class="method-cell"><strong>Test set</strong> 250 images fixes (commun)</div>
+            <div class="method-cell"><strong>Tailles</strong> 750, 500, 250, 200, 150, 100, 50, 25</div>
+            <div class="method-cell"><strong>λ testés</strong> 0.1, 0.3</div>
+            <div class="method-cell"><strong>Modèles</strong> 32 entraînements (4 × 8)</div>
+        </div>
+
+        <!-- ============== NOTE CONSOLIDÉE ============== -->
+        <div class="section" style="background:#1a1f36; border-left:3px solid #8892a4;">
+            <p style="color:#c8d0db; font-size:0.9rem; line-height:1.55; margin:0;">
+                Les quatre graphiques ci-dessous présentent l'évolution des métriques (Test Accuracy, Test Loss, Train Accuracy, Train Loss) en fonction de la taille du dataset. Pour chaque taille, trois barres côte à côte représentent les trois modèles : Normal et Guided GradCAM avec deux valeurs de $\lambda$ (0.1 et 0.3). Le winner par taille (meilleure performance) est entouré d'un trait <span style="color:#FFD54F; font-weight:600;">doré</span>. La valeur exacte est affichée au-dessus de chaque barre.
+            </p>
+        </div>
+
+        <!-- ============== TEST ACCURACY ============== -->
+        <div class="hero-card">
+            <div class="label">Test Accuracy</div>
+            <div class="headline">Test Accuracy par modèle et par taille de dataset</div>
+            <div class="hero-canvas-wrap"><canvas id="chart-hero-test-acc"></canvas></div>
+        </div>
+
+        <!-- ============== TEST LOSS ============== -->
+        <div class="hero-card">
+            <div class="label">Test Loss</div>
+            <div class="headline">Test Loss par modèle et par taille de dataset</div>
+            <div class="hero-canvas-wrap"><canvas id="chart-hero-test-loss"></canvas></div>
+        </div>
+
+        <!-- ============== TRAIN ACCURACY ============== -->
+        <div class="hero-card">
+            <div class="label">Train Accuracy</div>
+            <div class="headline">Train Accuracy par modèle et par taille de dataset</div>
+            <div class="hero-canvas-wrap"><canvas id="chart-hero-train-acc"></canvas></div>
+        </div>
+
+        <!-- ============== TRAIN LOSS ============== -->
+        <div class="hero-card">
+            <div class="label">Train Loss</div>
+            <div class="headline">Train Loss par modèle et par taille de dataset</div>
+            <div class="hero-canvas-wrap"><canvas id="chart-hero-train-loss"></canvas></div>
+        </div>
+
+        <!-- ============== TABLEAU RÉCAP ============== -->
+        <div class="section">
+            <div class="section-title">Tableau récapitulatif</div>
+            <p class="section-sub">Pour chaque taille de dataset, comparaison entre Normal et le meilleur Guided GradCAM (λ retenu sur la Test Accuracy). Convention pour Δ : un Δ positif signifie que Guided GradCAM est meilleur que Normal (gain en pts pour les accuracies, baisse de loss pour les losses).</p>
+            <table class="recap-table" id="recap-table">
+                <thead>
+                    <tr>
+                        <th>Taille dataset</th>
+                        <th>Modèle</th>
+                        <th>Test Acc</th>
+                        <th>Δ</th>
+                        <th>Test Loss</th>
+                        <th>Δ</th>
+                        <th>Train Acc</th>
+                        <th>Δ</th>
+                        <th>Train Loss</th>
+                        <th>Δ</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        (function () {
+            const data = window.RESULTS_DATA;
+            if (!data) {
+                document.querySelector('.container').insertAdjacentHTML('afterbegin',
+                    '<div class="section"><p style="color:#f44336">Données introuvables (data.js). Lance d\'abord run_exp2.py.</p></div>');
+                return;
+            }
+
+            const SIZES = [750, 500, 250, 200, 150, 100, 50, 25];
+            const MODELS = ['Normal', 'Guided GradCAM (λ=0.1)', 'Guided GradCAM (λ=0.3)'];
+            const MODEL_COLORS = {
+                'Normal':                    '#2196F3',
+                'Guided GradCAM (λ=0.1)':   '#CE93D8',
+                'Guided GradCAM (λ=0.3)':   '#9C27B0',
+            };
+            const KEY_SIZES = [750, 250, 100, 25];   // tailles pour la galerie compacte
+
+            Chart.defaults.color = '#8892a4';
+            Chart.defaults.borderColor = '#2a2f45';
+
+            // ----- Helpers -----
+            const fmt = (v, d) => (v == null || isNaN(v)) ? '–' : v.toFixed(d);
+            const modelKey = (base, size) => `${base} (${size} imgs)`;
+            const getHist  = (name)       => data.histories[name];
+            const getFinal = (name, met)  => {
+                const h = getHist(name);
+                if (!h || !h[met]) return null;
+                return h[met][h[met].length - 1];
+            };
+
+            // ----- 0. Précalcul : winner par taille -----
+            const winnerBySize = {};
+            SIZES.forEach(s => {
+                let best = null, bestAcc = -Infinity;
+                MODELS.forEach(m => {
+                    const a = getFinal(modelKey(m, s), 'test_acc');
+                    if (a !== null && a > bestAcc) { bestAcc = a; best = m; }
+                });
+                winnerBySize[s] = { model: best, acc: bestAcc };
+            });
+
+            // ============================================================
+            // 1. HEADLINE CHARTS : barres groupées (Accuracy + Loss)
+            // ============================================================
+
+            // Plugin: valeurs affichées au-dessus de chaque barre
+            const valueLabelsPlugin = {
+                id: 'valueLabels',
+                afterDatasetsDraw(chart, args, opts) {
+                    const { ctx } = chart;
+                    const decimals = opts.decimals ?? 1;
+                    const suffix   = opts.suffix   ?? '';
+                    ctx.save();
+                    ctx.font = '600 10px "Segoe UI", system-ui, sans-serif';
+                    ctx.fillStyle = '#e0e0e0';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    chart.data.datasets.forEach((ds, di) => {
+                        if (!chart.isDatasetVisible(di)) return;
+                        const meta = chart.getDatasetMeta(di);
+                        meta.data.forEach((bar, i) => {
+                            const v = ds.data[i];
+                            if (v == null || isNaN(v)) return;
+                            ctx.fillText(`${v.toFixed(decimals)}${suffix}`, bar.x, bar.y - 4);
+                        });
+                    });
+                    ctx.restore();
+                }
+            };
+
+            function buildHeroBarChart({ canvasId, metric, yLabel, yMin, yMax, decimals, suffix, winnerMode }) {
+                const labels = SIZES.map(s => `${s} imgs`);
+                const isMax = winnerMode === 'max';
+
+                // Winner par taille selon la métrique de ce chart
+                const winnerBy = {};
+                SIZES.forEach(s => {
+                    let best = null, bestVal = isMax ? -Infinity : Infinity;
+                    MODELS.forEach(m => {
+                        const v = getFinal(modelKey(m, s), metric);
+                        if (v == null) return;
+                        if (isMax ? v > bestVal : v < bestVal) { bestVal = v; best = m; }
+                    });
+                    winnerBy[s] = { model: best, val: bestVal };
+                });
+
+                const datasets = MODELS.map(m => {
+                    const values = SIZES.map(s => getFinal(modelKey(m, s), metric));
+                    const borderColors = values.map((_, idx) =>
+                        winnerBy[SIZES[idx]].model === m ? '#FFD54F' : MODEL_COLORS[m]);
+                    const borderWidths = values.map((_, idx) =>
+                        winnerBy[SIZES[idx]].model === m ? 2.5 : 0);
+                    return {
+                        label: m.replace('Guided GradCAM (λ=', 'G-GradCAM λ=').replace(/\)$/, ''),
+                        data: values,
+                        backgroundColor: MODEL_COLORS[m],
+                        borderColor: borderColors,
+                        borderWidth: borderWidths,
+                        borderRadius: 4,
+                        categoryPercentage: 0.8,
+                        barPercentage: 0.92,
+                    };
+                });
+
+                new Chart(document.getElementById(canvasId).getContext('2d'), {
+                    type: 'bar',
+                    data: { labels, datasets },
+                    plugins: [valueLabelsPlugin],
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        layout: { padding: { top: 22 } },   // espace pour les valeurs en haut
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Taille du dataset (décroissant)', color: '#aab' },
+                                ticks: { color: '#8892a4', font: { size: 11 } },
+                                grid: { display: false },
+                            },
+                            y: {
+                                title: { display: true, text: yLabel, color: '#aab' },
+                                ticks: { color: '#8892a4' },
+                                grid: { color: '#2a2f45' },
+                                beginAtZero: !isMax,
+                                min: yMin, max: yMax,
+                            }
+                        },
+                        plugins: {
+                            valueLabels: { decimals, suffix },
+                            legend: {
+                                labels: {
+                                    color: '#e0e0e0', font: { size: 12 }, boxWidth: 18, padding: 14,
+                                    // generateLabels ne propage pas labels.color → on le pose
+                                    // explicitement sur chaque item via fontColor.
+                                    generateLabels: chart => chart.data.datasets.map((ds, i) => ({
+                                        text: ds.label,
+                                        fillStyle: ds.backgroundColor,
+                                        strokeStyle: ds.backgroundColor,
+                                        lineWidth: 0,
+                                        fontColor: '#e0e0e0',
+                                        hidden: !chart.isDatasetVisible(i),
+                                        datasetIndex: i,
+                                    })),
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title: items => `${items[0].label}`,
+                                    label: ctx => `${ctx.dataset.label} : ${ctx.parsed.y.toFixed(decimals + 1)}${suffix}`,
+                                    afterBody: items => {
+                                        const sz = SIZES[items[0].dataIndex];
+                                        const w  = winnerBy[sz];
+                                        if (!w || w.model == null) return '';
+                                        return `\n★ Winner : ${w.model.replace('Guided GradCAM (λ=', 'λ=').replace(/\)$/, '')} (${w.val.toFixed(decimals + 1)}${suffix})`;
+                                    }
+                                }
+                            },
+                        }
+                    }
+                });
+            }
+
+            buildHeroBarChart({
+                canvasId: 'chart-hero-test-acc',
+                metric: 'test_acc',
+                yLabel: 'Test Accuracy (%)',
+                yMin: 40, yMax: 100,
+                decimals: 1, suffix: '%',
+                winnerMode: 'max',
+            });
+
+            buildHeroBarChart({
+                canvasId: 'chart-hero-test-loss',
+                metric: 'test_loss',
+                yLabel: 'Test Loss',
+                yMin: 0, yMax: null,
+                decimals: 2, suffix: '',
+                winnerMode: 'min',
+            });
+
+            buildHeroBarChart({
+                canvasId: 'chart-hero-train-acc',
+                metric: 'train_acc',
+                yLabel: 'Train Accuracy (%)',
+                yMin: 40, yMax: 100,
+                decimals: 1, suffix: '%',
+                winnerMode: 'max',
+            });
+
+            buildHeroBarChart({
+                canvasId: 'chart-hero-train-loss',
+                metric: 'train_loss',
+                yLabel: 'Train Loss',
+                yMin: 0, yMax: null,
+                decimals: 2, suffix: '',
+                winnerMode: 'min',
+            });
+
+            // ============================================================
+            // 2. TABLEAU RÉCAP : Normal + Best Guided GradCAM (sélection sur Test Acc)
+            // ============================================================
+            (function buildRecap() {
+                const tbody = document.querySelector('#recap-table tbody');
+                const fmtPct   = v => (v == null ? '–' : `${v.toFixed(2)} %`);
+                const fmtLoss  = v => (v == null ? '–' : v.toFixed(4));
+                const deltaClass = v => {
+                    if (v == null) return 'recap-delta-zero';
+                    if (v >  0.005) return 'recap-delta-pos';
+                    if (v < -0.005) return 'recap-delta-neg';
+                    return 'recap-delta-zero';
+                };
+                const fmtDeltaPts  = v => v == null
+                    ? '–'
+                    : `<span class="${deltaClass(v)}">${(v >= 0 ? '+' : '') + v.toFixed(2)}</span>`;
+                const fmtDeltaLoss = v => v == null
+                    ? '–'
+                    : `<span class="${deltaClass(v)}">${(v >= 0 ? '+' : '') + v.toFixed(4)}</span>`;
+                const ggcLabel = m => m.replace('Guided GradCAM (λ=', 'Best Guided GradCAM (λ=');
+
+                SIZES.forEach(s => {
+                    // Métriques Normal (baseline)
+                    const nKey  = modelKey('Normal', s);
+                    const nTstA = getFinal(nKey, 'test_acc');
+                    const nTstL = getFinal(nKey, 'test_loss');
+                    const nTrnA = getFinal(nKey, 'train_acc');
+                    const nTrnL = getFinal(nKey, 'train_loss');
+
+                    // Sélection du meilleur Guided GradCAM selon la Test Accuracy
+                    const ggcModels = MODELS.filter(m => m !== 'Normal');
+                    let best = null, bestAcc = -Infinity;
+                    ggcModels.forEach(m => {
+                        const a = getFinal(modelKey(m, s), 'test_acc');
+                        if (a != null && a > bestAcc) { bestAcc = a; best = m; }
+                    });
+                    const bKey  = modelKey(best, s);
+                    const bTstA = getFinal(bKey, 'test_acc');
+                    const bTstL = getFinal(bKey, 'test_loss');
+                    const bTrnA = getFinal(bKey, 'train_acc');
+                    const bTrnL = getFinal(bKey, 'train_loss');
+
+                    // Deltas : + = Guided GradCAM meilleur que Normal
+                    //   Acc  : Δ = best - normal (gain en pts)
+                    //   Loss : Δ = normal - best (baisse de loss)
+                    const dTstA = (nTstA != null && bTstA != null) ? (bTstA - nTstA) : null;
+                    const dTstL = (nTstL != null && bTstL != null) ? (nTstL - bTstL) : null;
+                    const dTrnA = (nTrnA != null && bTrnA != null) ? (bTrnA - nTrnA) : null;
+                    const dTrnL = (nTrnL != null && bTrnL != null) ? (nTrnL - bTrnL) : null;
+
+                    // Ligne 1 : Normal (avec rowspan sur la cellule taille)
+                    tbody.insertAdjacentHTML('beforeend', `
+                        <tr class="size-group-start">
+                            <td class="size-cell" rowspan="2">${s} imgs</td>
+                            <td>Normal</td>
+                            <td>${fmtPct(nTstA)}</td><td>–</td>
+                            <td>${fmtLoss(nTstL)}</td><td>–</td>
+                            <td>${fmtPct(nTrnA)}</td><td>–</td>
+                            <td>${fmtLoss(nTrnL)}</td><td>–</td>
+                        </tr>
+                    `);
+
+                    // Ligne 2 : Best Guided GradCAM + deltas
+                    tbody.insertAdjacentHTML('beforeend', `
+                        <tr>
+                            <td>${ggcLabel(best)}</td>
+                            <td>${fmtPct(bTstA)}</td><td>${fmtDeltaPts(dTstA)}</td>
+                            <td>${fmtLoss(bTstL)}</td><td>${fmtDeltaLoss(dTstL)}</td>
+                            <td>${fmtPct(bTrnA)}</td><td>${fmtDeltaPts(dTrnA)}</td>
+                            <td>${fmtLoss(bTrnL)}</td><td>${fmtDeltaLoss(dTrnL)}</td>
+                        </tr>
+                    `);
+                });
+            })();
+
+
+        })();
+    </script>
+</body>
+
+</html>

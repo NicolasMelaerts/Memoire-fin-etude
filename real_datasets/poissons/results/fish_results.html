@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fish Dataset : SimpleCNN · Normal vs Guided GradCAM</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:#0f1117;color:#e0e0e0;min-height:100vh}
+header{background:linear-gradient(135deg,#1a1f36 0%,#0f1117 100%);border-bottom:1px solid #2a2f45;padding:32px 40px}
+header h1{font-size:1.8rem;font-weight:700;color:#fff;margin-bottom:8px}
+header p{color:#8892a4;font-size:.95rem}
+.container{max-width:1600px;margin:0 auto;padding:32px 24px}
+.section{background:#1a1f2e;border-radius:10px;padding:30px;margin-bottom:30px;
+         box-shadow:0 4px 20px rgba(0,0,0,.3);border:1px solid #2a2f45}
+.section-title{font-size:1.2rem;font-weight:600;color:#fff;margin-bottom:20px;
+               padding-bottom:12px;border-bottom:1px solid #2a2f45}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px}
+.stat-card{background:#141824;padding:16px;border-radius:8px;text-align:center;border:1px solid #2a2f45}
+.stat-card .val{font-size:1.8rem;font-weight:700;color:#2196F3}
+.stat-card .lbl{font-size:.8rem;color:#8892a4;margin-top:4px}
+.metrics-table{width:100%;border-collapse:collapse;background:#141824;border-radius:8px;overflow:hidden}
+.metrics-table th,.metrics-table td{padding:14px 18px;text-align:left;border-bottom:1px solid #2a2f45}
+.metrics-table th{background:#232838;color:#8892a4;font-weight:600;font-size:.85rem;
+                  text-transform:uppercase;letter-spacing:.05em}
+.metrics-table tr:hover{background:#1f2438}
+.metric-value{font-weight:bold;color:#3F51B5}
+.metric-value.best{color:#4CAF50;background:#1a3a1a;padding:4px 8px;border-radius:4px}
+tr.best{background-color:#1a3a1a !important}tr.best:hover{background-color:#1f4a1f !important}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px}
+.chart-box{background:#141824;border-radius:10px;padding:24px;border:1px solid #2a2f45}
+.chart-box h3{font-size:.95rem;font-weight:600;color:#aab;margin-bottom:16px}
+.chart-box canvas{max-height:300px}
+.per-class-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.per-class-table{background:#141824;border-radius:8px;overflow:hidden;border:1px solid #2a2f45}
+.per-class-table h4{padding:12px 16px;background:#232838;color:#aab;font-size:.9rem}
+.per-class-table table{width:100%;border-collapse:collapse}
+.per-class-table td,.per-class-table th{padding:8px 14px;border-bottom:1px solid #2a2f45;font-size:.82rem}
+.per-class-table th{color:#8892a4;font-weight:600}
+.bar{height:8px;border-radius:4px;background:#2196F3;display:inline-block}
+#gallery{display:flex;flex-direction:column;gap:24px;margin-top:24px}
+.gallery-card{background:#141824;border-radius:8px;border:1px solid #2a2f45;padding:20px}
+.gallery-header{background:#232838;padding:10px 14px;font-weight:600;color:#fff;
+                font-size:.9rem;border-radius:6px;margin-bottom:16px;text-align:center}
+.gallery-row{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.gallery-row+.gallery-row{margin-top:18px;padding-top:18px;border-top:1px solid #2a2f45}
+.gallery-item{text-align:center;min-width:128px}
+.gallery-item img{width:128px;height:128px;object-fit:cover;border-radius:6px;
+                  border:2px solid #2a2f45}
+.gallery-item .lbl{font-size:.75rem;color:#8892a4;margin-top:6px;font-weight:600}
+.gallery-item .pred{font-size:.7rem;margin-top:4px}
+.gallery-item .pred.ok{color:#4CAF50}
+.gallery-item .pred.ko{color:#f44336}
+.no-data{color:#8892a4;font-style:italic;padding:40px;text-align:center}
+code{background:#232838;padding:2px 6px;border-radius:3px;font-size:.85em}
+</style>
+</head>
+<body>
+<header>
+  <h1>&#x1F41F; Fish Dataset : SimpleCNN &middot; Normal vs Guided GradCAM</h1>
+  <p>A Large Scale Fish Dataset &middot; SimpleCNN &middot; Masques de segmentation</p>
+</header>
+<div class="container">
+
+  <!-- STATS DATASET -->
+  <div class="section">
+    <div class="section-title">&#x1F4CA; Dataset Fish</div>
+    <div class="stats-grid" id="stats-grid"></div>
+  </div>
+
+  <!-- MÉTRIQUES GLOBALES -->
+  <div class="section">
+    <div class="section-title">&#x1F3AF; R&eacute;sultats globaux</div>
+    <table class="metrics-table" id="main-table">
+      <thead><tr>
+        <th>Mod&egrave;le</th>
+        <th>Test Accuracy (%)</th><th>Test Loss</th>
+        <th>Train Accuracy (%)</th><th>Train Loss</th>
+        <th>IoU</th><th>Dur&eacute;e (s)</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- COURBES -->
+  <div class="section">
+    <div class="section-title">&#x1F4C8; Courbes d&rsquo;apprentissage</div>
+    <div class="charts-grid">
+      <div class="chart-box"><h3>Test Accuracy (%)</h3><canvas id="ch-test-acc"></canvas></div>
+      <div class="chart-box"><h3>Train Accuracy (%)</h3><canvas id="ch-train-acc"></canvas></div>
+      <div class="chart-box"><h3>Test Loss</h3><canvas id="ch-test-loss"></canvas></div>
+      <div class="chart-box"><h3>Train Loss (CE pure)</h3><canvas id="ch-train-loss"></canvas></div>
+    </div>
+  </div>
+
+  <!-- PER-CLASS ACCURACY -->
+  <div class="section">
+    <div class="section-title">&#x1F4CB; Accuracy par classe</div>
+    <p style="color:#8892a4;font-size:.85rem;margin-bottom:16px">
+      Comparaison Normal vs Guided GradCAM (SimpleCNN) par esp&egrave;ce de poisson.
+    </p>
+    <div class="per-class-grid">
+      <div class="per-class-table">
+        <h4>&#x1F7E2; Meilleures classes (selon Guided GradCAM)</h4>
+        <table><thead><tr><th>Classe</th><th>Normal</th><th>Guided GradCAM</th></tr></thead>
+        <tbody id="top15-body"></tbody></table>
+      </div>
+      <div class="per-class-table">
+        <h4>&#x1F534; Moins bonnes classes (selon Guided GradCAM)</h4>
+        <table><thead><tr><th>Classe</th><th>Normal</th><th>Guided GradCAM</th></tr></thead>
+        <tbody id="bot15-body"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- GALERIE -->
+  <div class="section">
+    <div class="section-title">&#x1F5BC;&#xFE0F; Comparaisons Guided GradCAM vs Segmentation</div>
+    <p style="color:#8892a4;margin-bottom:20px;text-align:center">
+      Image originale &middot; Masque GT &middot; Guided GradCAM par mod&egrave;le (SimpleCNN &amp; ResNet18)
+    </p>
+    <div id="gallery"></div>
+  </div>
+
+</div>
+<script src="data.js"></script>
+<script>
+const COLORS = {
+  Normal:'#2196F3',
+  'GradCAM (\u03bb=0.1)':'#FF9800',
+  'Normal-ResNet18':'#4CAF50',
+  'GradCAM-ResNet18':'#E91E63',
+};
+Chart.defaults.color='#8892a4';
+Chart.defaults.borderColor='#2a2f45';
+
+// Ordre canonique : SimpleCNN (Normal + 3 λ) puis ResNet18 (Normal + 3 λ)
+const MODEL_ORDER = [
+  'Normal',
+  'GradCAM (λ=0.1)',
+  'GradCAM (λ=0.3)',
+  'GradCAM (λ=0.5)',
+  'Normal-ResNet18',
+  'GradCAM-ResNet18 (λ=0.1)',
+  'GradCAM-ResNet18 (λ=0.3)',
+  'GradCAM-ResNet18 (λ=0.5)',
+];
+const modelRank = m => { const i = MODEL_ORDER.indexOf(m); return i === -1 ? 99 : i; };
+// Convention : "GradCAM" est la technique de visualisation ; la stratégie d'entraînement
+// utilisée ici est "Guided GradCAM". On renomme à l'affichage uniquement.
+const prettyName = m => m.replace(/^GradCAM/, 'Guided GradCAM');
+
+window.addEventListener('DOMContentLoaded',()=>{
+  if(!window.FISH_DATA){
+    document.querySelector('.container').innerHTML=
+      '<div class="no-data">Aucune donn\u00e9e disponible \u2014 lancez <code>python run_fish.py</code> pour g\u00e9n\u00e9rer <code>data.js</code>.</div>';
+    return;
+  }
+  const d = window.FISH_DATA;
+  buildStats(d);
+  buildTable(d);
+  buildCharts(d);
+  buildPerClass(d);
+  buildGallery(d);
+});
+
+function buildStats(d){
+  const grid = document.getElementById('stats-grid');
+  const items=[
+    [(d.n_train+d.n_test).toLocaleString(),'Images totales'],
+    [d.n_classes,'Esp\u00e8ces (classes)'],
+    [d.n_train.toLocaleString(),'Images train'],
+    [d.n_test.toLocaleString(),'Images test'],
+    ['100 %','Segment\u00e9es (GT)'],
+    ['128\u00d7128','Taille entr\u00e9e'],
+  ];
+  items.forEach(([v,l])=>{
+    const c=document.createElement('div');c.className='stat-card';
+    c.innerHTML=`<div class="val">${v}</div><div class="lbl">${l}</div>`;
+    grid.appendChild(c);
+  });
+}
+
+function buildTable(d){
+  const tbody=document.querySelector('#main-table tbody');
+  const models=Object.keys(d.histories).sort((a,b) => modelRank(a) - modelRank(b));
+  models.forEach(m=>{
+    const h=d.histories[m];
+    const testAcc =h.test_acc [h.test_acc .length-1];
+    const trainAcc=h.train_acc[h.train_acc.length-1];
+    const testLoss=h.test_loss[h.test_loss.length-1];
+    const trainLoss=h.train_loss?h.train_loss[h.train_loss.length-1]:null;
+    const iou=(d.iou_scores[m]||0);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><strong>${prettyName(m)}</strong></td>
+      <td><span class="metric-value">${testAcc.toFixed(2)}</span></td>
+      <td><span class="metric-value">${testLoss.toFixed(4)}</span></td>
+      <td><span class="metric-value">${trainAcc.toFixed(2)}</span></td>
+      <td><span class="metric-value">${trainLoss!==null?trainLoss.toFixed(4):'—'}</span></td>
+      <td><span class="metric-value">${(iou*100).toFixed(1)}%</span></td>
+      <td><span class="metric-value">${d.durations[m].toFixed(0)}</span></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+const charts={};
+function buildCharts(d){
+  const models=Object.keys(d.histories).sort((a,b) => modelRank(a) - modelRank(b));
+  const labels=d.epochs;
+  function mk(id,key,yLabel,beginAtZero,maxY){
+    const ctx=document.getElementById(id).getContext('2d');
+    return new Chart(ctx,{type:'line',data:{labels,datasets:models.map(m=>({
+      label:prettyName(m),
+      data:d.histories[m][key],
+      borderColor:COLORS[m]||'#aab',
+      backgroundColor:(COLORS[m]||'#aab')+'33',
+      borderWidth:2,tension:.3,
+    }))},options:{responsive:true,maintainAspectRatio:true,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#8892a4',font:{size:10},boxWidth:15}}},
+      scales:{
+        y:{beginAtZero,max:maxY,title:{display:true,text:yLabel,color:'#aab'},
+           grid:{color:'#2a2f45'},ticks:{color:'#8892a4'}},
+        x:{title:{display:true,text:'Epoch',color:'#aab'},
+           grid:{color:'#2a2f45'},ticks:{color:'#8892a4'}},
+      }
+    }});
+  }
+  charts.ta=mk('ch-test-acc','test_acc','Accuracy (%)',false,100);
+  charts.ra=mk('ch-train-acc','train_acc','Accuracy (%)',false,100);
+  charts.tl=mk('ch-test-loss','test_loss','Loss',true);
+  charts.rl=mk('ch-train-loss','train_ce','Loss',true);
+}
+
+function buildPerClass(d){
+  const classes=d.classes;
+  const normalAcc=d.per_class_accs['Normal']||d.per_class_accs[Object.keys(d.per_class_accs)[0]]||[];
+  const gcAcc=d.per_class_accs['GradCAM (\u03bb=0.1)']||d.per_class_accs[Object.keys(d.per_class_accs)[1]]||[];
+
+  const ranked=classes.map((name,i)=>({name,norm:normalAcc[i]||0,gc:gcAcc[i]||0}))
+    .filter(x=>x.gc>0||x.norm>0)
+    .sort((a,b)=>b.gc-a.gc);
+
+  function fillTable(tbodyId,items){
+    const tbody=document.getElementById(tbodyId);
+    items.forEach(({name,norm,gc})=>{
+      const delta=gc-norm;
+      const deltaStr=delta>=0?`+${delta.toFixed(0)}`:`${delta.toFixed(0)}`;
+      const deltaColor=delta>0?'#4CAF50':delta<0?'#f44336':'#aab';
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
+        <td style="font-size:.78rem">${name}</td>
+        <td>${norm.toFixed(0)}%</td>
+        <td><strong>${gc.toFixed(0)}%</strong>
+            <span style="color:${deltaColor};font-size:.7rem;margin-left:4px">(${deltaStr})</span></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  fillTable('top15-body', ranked.slice(0, Math.ceil(ranked.length/2)));
+  fillTable('bot15-body', [...ranked].reverse().slice(0, Math.ceil(ranked.length/2)));
+}
+
+function buildGallery(d){
+  const gallery=document.getElementById('gallery');
+  const examples=window.FISH_EXAMPLES||[];
+  if(!examples.length){
+    gallery.innerHTML='<div class="no-data">Galerie vide \u2014 relancez sans cache pour g\u00e9n\u00e9rer les exemples.</div>';
+    return;
+  }
+  const models=Object.keys(d.histories).sort((a,b) => modelRank(a) - modelRank(b));
+
+  const renderItem=(m,md)=>{
+    const cls=md.correct?'ok':'ko';
+    return `<div class="gallery-item">
+      <img src="gradcam_examples/${md.cam_img}" alt="${m}" onerror="this.style.display='none'">
+      <div class="lbl">${prettyName(m)}</div>
+      <div class="pred ${cls}">${md.pred_class||'?'}<br>(${md.confidence||'?'})</div>
+    </div>`;
+  };
+
+  const simpleModels=models.filter(m=>!/ResNet/i.test(m));
+  const resnetModels=models.filter(m=> /ResNet/i.test(m));
+
+  examples.forEach((ex,i)=>{
+    const card=document.createElement('div');
+    card.className='gallery-card';
+
+    const simpleHTML=simpleModels.map(m=>renderItem(m,ex.models[m]||{})).join('');
+    const resnetHTML=resnetModels.map(m=>renderItem(m,ex.models[m]||{})).join('');
+
+    card.innerHTML=`
+      <div class="gallery-header">\u00c9chantillon #${i} \u2014 Vrai label : ${ex.true_class}</div>
+      <div class="gallery-row gallery-row-top">
+        <div class="gallery-item">
+          <img src="gradcam_examples/${ex.orig_img}" alt="Original">
+          <div class="lbl">Image originale</div>
+        </div>
+        <div class="gallery-item">
+          <img src="gradcam_examples/${ex.seg_img}" alt="Segmentation GT">
+          <div class="lbl">Masque GT</div>
+        </div>
+      </div>
+      ${simpleHTML?`<div class="gallery-row gallery-row-models">${simpleHTML}</div>`:''}
+      ${resnetHTML?`<div class="gallery-row gallery-row-models">${resnetHTML}</div>`:''}`;
+    gallery.appendChild(card);
+  });
+}
+</script>
+</body>
+</html>

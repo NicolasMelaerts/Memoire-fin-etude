@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fish Dataset : Normal vs Guided GradCAM avec moins de données</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:#0f1117;color:#e0e0e0;min-height:100vh}
+header{background:linear-gradient(135deg,#1a1f36 0%,#0f1117 100%);border-bottom:1px solid #2a2f45;padding:32px 40px}
+header h1{font-size:1.8rem;font-weight:700;color:#fff;margin-bottom:8px}
+header p{color:#8892a4;font-size:.95rem}
+.container{max-width:1400px;margin:0 auto;padding:32px 24px}
+.section{background:#1a1f2e;border-radius:10px;padding:30px;margin-bottom:30px;
+         box-shadow:0 4px 20px rgba(0,0,0,.3);border:1px solid #2a2f45}
+.section-title{font-size:1.2rem;font-weight:600;color:#fff;margin-bottom:20px;
+               padding-bottom:12px;border-bottom:1px solid #2a2f45}
+.metrics-table{width:100%;border-collapse:collapse;background:#141824;border-radius:8px;overflow:hidden}
+.metrics-table th,.metrics-table td{padding:12px 16px;text-align:left;border-bottom:1px solid #2a2f45}
+.metrics-table th{background:#232838;color:#8892a4;font-weight:600;font-size:.82rem;
+                  text-transform:uppercase;letter-spacing:.05em}
+.metrics-table tr:hover{background:#1f2438}
+.badge{display:inline-block;padding:3px 9px;border-radius:10px;font-size:.75rem;font-weight:700;margin-right:6px}
+.badge-neutral{background:#1a1f2e;color:#aab;border:1px solid #3a4060}
+.badge-normal{background:#1a2a4a;color:#2196F3;border:1px solid #2196F3}
+.badge-gc01{background:#2a2410;color:#FFC107;border:1px solid #FFC107}
+.badge-gc03{background:#2a1a10;color:#FF5722;border:1px solid #FF5722}
+.badge-gc05{background:#2a1430;color:#9C27B0;border:1px solid #9C27B0}
+.badge-gc{background:#1a1a1a;color:#aaa;border:1px solid #555}
+.delta-pos{color:#4CAF50;font-weight:700}
+.delta-neg{color:#f44336;font-weight:700}
+.delta-neu{color:#aab}
+.best-cell{color:#4CAF50;background:#1a3a1a;padding:3px 8px;border-radius:4px;font-weight:700}
+tr.best{background-color:#1a3a1a !important}tr.best:hover{background-color:#1f4a1f !important}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.chart-box{background:#141824;border-radius:10px;padding:24px;border:1px solid #2a2f45}
+.chart-box h3{font-size:.9rem;font-weight:600;color:#aab;margin-bottom:16px}
+.chart-box canvas{max-height:320px}
+.protocol-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.protocol-card{background:#141824;padding:16px;border-radius:8px}
+code{background:#232838;padding:2px 6px;border-radius:3px;font-size:.85em}
+.no-data{color:#8892a4;font-style:italic;padding:40px;text-align:center}
+.frac-bar-wrap{display:flex;align-items:center;gap:8px}
+.frac-bar{height:8px;border-radius:4px}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.kpi-card{background:#141824;border:1px solid #2a2f45;border-radius:10px;padding:18px;
+          position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+.kpi-card.kpi-blue::before{background:#2196F3}
+.kpi-card.kpi-green::before{background:#4CAF50}
+.kpi-card.kpi-orange::before{background:#FF9800}
+.kpi-card.kpi-purple::before{background:#9C27B0}
+.kpi-label{color:#8892a4;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;
+           margin-bottom:8px;font-weight:600}
+.kpi-value{color:#fff;font-size:1.8rem;font-weight:700;line-height:1.1;margin-bottom:6px}
+.kpi-sub{color:#aab;font-size:.78rem;line-height:1.4}
+.kpi-delta-pos{color:#4CAF50;font-weight:700}
+.kpi-delta-neg{color:#f44336;font-weight:700}
+.insight-box{background:linear-gradient(135deg,#1a3a2a 0%,#1a2438 100%);
+             border:1px solid #2a5a3a;border-radius:10px;padding:18px 22px;margin-top:18px;
+             display:flex;align-items:center;gap:14px}
+.insight-icon{font-size:1.6rem}
+.insight-text{color:#d4e8d4;font-size:.92rem;line-height:1.5}
+.insight-text strong{color:#7fdb7f}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>&#x1F41F; Fish Dataset &mdash; Normal vs Guided GradCAM avec moins de donn&eacute;es</h1>
+  <p>
+    Hypoth&egrave;se : la supervision spatiale Guided GradCAM permet d&rsquo;atteindre les performances
+    du <strong>Normal&nbsp;100%</strong> avec <strong>moins d&rsquo;images d&rsquo;entra&icirc;nement</strong>.
+    Comparaison directe Normal vs Guided GradCAM &agrave; chaque fraction.
+  </p>
+</header>
+<div class="container">
+
+  <!-- TABLEAU -->
+  <div class="section">
+    <div class="section-title">&#x1F3AF; R&eacute;sultats</div>
+    <table class="metrics-table">
+      <thead><tr>
+        <th>Mod&egrave;le</th>
+        <th>Images train</th>
+        <th>Fraction</th>
+        <th>Test Acc (%)</th>
+        <th>vs Normal 100%</th>
+        <th>Guided GradCAM vs Normal (m&ecirc;me %)</th>
+        <th>IoU</th>
+      </tr></thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <!-- COURBES -->
+  <div class="section">
+    <div class="section-title">&#x1F4C8; Courbes d&rsquo;apprentissage</div>
+    <div class="charts-grid">
+      <div class="chart-box"><h3>Test Accuracy (%)</h3><canvas id="ch-acc"></canvas></div>
+      <div class="chart-box"><h3>Test Loss</h3><canvas id="ch-loss"></canvas></div>
+    </div>
+  </div>
+
+  <!-- SYNTHÈSE BARRES (Accuracy + Loss côte à côte) -->
+  <div class="section">
+    <div class="section-title">&#x1F4CA; Synth&egrave;se &mdash; Accuracy et Loss finales vs fraction</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div class="chart-box">
+        <h3>Test Accuracy finale par fraction &mdash; Normal vs Guided GradCAM (&lambda;=0.1, 0.3, 0.5)</h3>
+        <canvas id="ch-bar" style="max-height:360px"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>Test Loss finale par fraction &mdash; Normal vs Guided GradCAM (&lambda;=0.1, 0.3, 0.5)</h3>
+        <canvas id="ch-bar-loss" style="max-height:360px"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="data2.js"></script>
+<script>
+const C_NORMAL  = '#2196F3';
+// Couleurs de base par valeur de λ
+const C_GC_BASE = { 0.1: [255, 193, 7], 0.3: [255, 87, 34], 0.5: [156, 39, 176] };
+
+// Convention : "GradCAM" est la technique de visualisation ; la stratégie
+// d'entraînement utilisée ici est "Guided GradCAM". On renomme à l'affichage uniquement.
+const prettyName = m => m.replace(/^GradCAM/, 'Guided GradCAM');
+
+// Dégradé selon fraction, autour de la couleur de base de λ (frac=1 → couleur pleine, frac=0.1 → assombri)
+function gcColor(frac, lam) {
+  const base = C_GC_BASE[lam] || [255, 152, 0];
+  if (frac >= 1.0) return `rgb(${base[0]},${base[1]},${base[2]})`;
+  const t = 1.0 - frac;
+  const r = Math.round(base[0] * (1 - 0.4 * t));
+  const g = Math.round(base[1] * (1 - 0.4 * t));
+  const b = Math.round(base[2] * (1 - 0.4 * t));
+  return `rgb(${r},${g},${b})`;
+}
+
+// Dégradé bleu clair→bleu foncé selon fraction (1.0 → 0.1)
+function normalColor(frac) {
+  if (frac >= 1.0) return C_NORMAL;
+  const t = 1.0 - frac;
+  const r = Math.round(33 + 100 * (1 - t));
+  const g = Math.round(150 + 100 * (1 - t));
+  return `rgb(${r},${g},243)`;
+}
+
+function gcBadgeClass(lam) {
+  if (lam === 0.1)  return 'badge-gc01';
+  if (lam === 0.3) return 'badge-gc03';
+  if (lam === 0.5)  return 'badge-gc05';
+  return 'badge-gc';
+}
+
+Chart.defaults.color       = '#8892a4';
+Chart.defaults.borderColor = '#2a2f45';
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (!window.FISH2_DATA) {
+    document.querySelector('.container').innerHTML =
+      '<div class="no-data">Aucune donn\u00e9e \u2014 lancez <code>python exp_poissons_efficacite.py</code>.</div>';
+    return;
+  }
+  if (window.ChartDataLabels) Chart.register(window.ChartDataLabels);
+  const d = window.FISH2_DATA;
+  buildTable(d);
+  buildCharts(d);
+  buildBarChart(d);
+  buildBarChartLoss(d);
+});
+
+function buildKPIs(d) {
+  const baseAcc = d.histories[d.baseline] ? d.histories[d.baseline].test_acc.at(-1) : null;
+
+  // Index par fraction et par modèle
+  const normalByFrac = {};
+  const gcByFracLam = {};   // {pct: {lam: acc}}
+  d.configs.forEach(c => {
+    const h = d.histories[c.name]; if (!h) return;
+    const pct = Math.round(c.frac * 100);
+    if (c.mode === 'normal') {
+      normalByFrac[pct] = h.test_acc.at(-1);
+    } else {
+      if (!gcByFracLam[pct]) gcByFracLam[pct] = {};
+      gcByFracLam[pct][c.lambda_gc] = h.test_acc.at(-1);
+    }
+  });
+
+  // Plus petite fraction testée (autre que 100%)
+  const smallPcts = Object.keys(normalByFrac).map(Number).filter(p => p < 100).sort((a, b) => a - b);
+  const smallPct  = smallPcts[0];
+  const normalSmall = smallPct ? normalByFrac[smallPct] : null;
+
+  // Meilleur GradCAM à la plus petite fraction
+  let bestGcSmall = null;
+  if (smallPct && gcByFracLam[smallPct]) {
+    for (const [lam, acc] of Object.entries(gcByFracLam[smallPct])) {
+      if (!bestGcSmall || acc > bestGcSmall.acc) bestGcSmall = { lam: parseFloat(lam), acc };
+    }
+  }
+
+  // Plus grand écart GradCAM vs Normal à fraction égale
+  let biggestLift = null;
+  Object.keys(gcByFracLam).forEach(pctStr => {
+    const pct = +pctStr;
+    const nAcc = normalByFrac[pct];
+    if (nAcc === undefined) return;
+    Object.entries(gcByFracLam[pct]).forEach(([lam, acc]) => {
+      const diff = acc - nAcc;
+      if (!biggestLift || diff > biggestLift.diff) {
+        biggestLift = { pct, lam: parseFloat(lam), acc, nAcc, diff };
+      }
+    });
+  });
+
+  // Croisement : plus petite fraction où GradCAM atteint la baseline 100%
+  let crossover = null;
+  if (baseAcc !== null) {
+    Object.keys(gcByFracLam).map(Number).sort((a, b) => a - b).forEach(pct => {
+      if (pct >= 100) return;
+      Object.entries(gcByFracLam[pct]).forEach(([lam, acc]) => {
+        if (acc >= baseAcc - 0.5) {
+          if (!crossover || pct < crossover.pct) {
+            crossover = { pct, lam: parseFloat(lam), acc };
+          }
+        }
+      });
+    });
+  }
+
+  const grid = document.getElementById('kpi-grid');
+  const cards = [];
+
+  if (baseAcc !== null) {
+    cards.push(`
+      <div class="kpi-card kpi-blue">
+        <div class="kpi-label">Baseline</div>
+        <div class="kpi-value">${baseAcc.toFixed(1)}%</div>
+        <div class="kpi-sub">Normal &mdash; 100% des donn&eacute;es (${d.n_train_full.toLocaleString()} images)</div>
+      </div>`);
+  }
+
+  if (smallPct && bestGcSmall && normalSmall !== null) {
+    const liftVsNorm = bestGcSmall.acc - normalSmall;
+    const cls = liftVsNorm >= 0 ? 'kpi-delta-pos' : 'kpi-delta-neg';
+    const sign = liftVsNorm >= 0 ? '+' : '';
+    cards.push(`
+      <div class="kpi-card kpi-orange">
+        <div class="kpi-label">GradCAM &agrave; ${smallPct}% des donn&eacute;es</div>
+        <div class="kpi-value">${bestGcSmall.acc.toFixed(1)}%</div>
+        <div class="kpi-sub">Meilleur &lambda;=${bestGcSmall.lam} &mdash;
+          <span class="${cls}">${sign}${liftVsNorm.toFixed(1)}%</span> vs Normal ${smallPct}%
+        </div>
+      </div>`);
+  }
+
+  if (biggestLift) {
+    const cls = biggestLift.diff >= 0 ? 'kpi-delta-pos' : 'kpi-delta-neg';
+    const sign = biggestLift.diff >= 0 ? '+' : '';
+    cards.push(`
+      <div class="kpi-card kpi-green">
+        <div class="kpi-label">Plus gros &eacute;cart GradCAM vs Normal</div>
+        <div class="kpi-value ${cls}">${sign}${biggestLift.diff.toFixed(1)}%</div>
+        <div class="kpi-sub">&agrave; ${biggestLift.pct}% des donn&eacute;es, &lambda;=${biggestLift.lam}
+          (${biggestLift.acc.toFixed(1)}% vs ${biggestLift.nAcc.toFixed(1)}%)</div>
+      </div>`);
+  }
+
+  if (crossover) {
+    const savings = 100 - crossover.pct;
+    cards.push(`
+      <div class="kpi-card kpi-purple">
+        <div class="kpi-label">&Eacute;quivalent baseline 100%</div>
+        <div class="kpi-value">${crossover.pct}% des donn&eacute;es</div>
+        <div class="kpi-sub">GradCAM &lambda;=${crossover.lam} atteint ${crossover.acc.toFixed(1)}%
+          &mdash; <strong style="color:#9C27B0">&minus;${savings}% d&rsquo;images</strong></div>
+      </div>`);
+  } else if (baseAcc !== null) {
+    cards.push(`
+      <div class="kpi-card kpi-purple">
+        <div class="kpi-label">&Eacute;quivalent baseline 100%</div>
+        <div class="kpi-value" style="font-size:1.1rem;color:#aab">Non atteint</div>
+        <div class="kpi-sub">Aucun GradCAM &lt;100% n&rsquo;atteint ${baseAcc.toFixed(1)}% sur les fractions test&eacute;es.</div>
+      </div>`);
+  }
+
+  grid.innerHTML = cards.join('');
+
+  // Insight textuel principal
+  const insightWrap = document.getElementById('insight-box-wrap');
+  if (crossover && baseAcc !== null) {
+    insightWrap.innerHTML = `
+      <div class="insight-box">
+        <div class="insight-icon">&#x1F4A1;</div>
+        <div class="insight-text">
+          La supervision spatiale GradCAM (<strong>&lambda;=${crossover.lam}</strong>) atteint la performance
+          de la baseline Normal 100% (<strong>${baseAcc.toFixed(1)}%</strong>) en n&rsquo;utilisant que
+          <strong>${crossover.pct}%</strong> des images d&rsquo;entra&icirc;nement &mdash;
+          soit une &eacute;conomie de <strong>${100 - crossover.pct}%</strong> du dataset.
+        </div>
+      </div>`;
+  } else if (biggestLift && biggestLift.diff > 0) {
+    insightWrap.innerHTML = `
+      <div class="insight-box">
+        <div class="insight-icon">&#x1F4A1;</div>
+        <div class="insight-text">
+          Le meilleur gain GradCAM vs Normal &agrave; fraction &eacute;gale est de
+          <strong>+${biggestLift.diff.toFixed(1)}%</strong> &agrave; <strong>${biggestLift.pct}%</strong>
+          des donn&eacute;es (&lambda;=${biggestLift.lam}). La baseline Normal 100% n&rsquo;est cependant pas
+          encore atteinte par GradCAM &agrave; donn&eacute;es r&eacute;duites.
+        </div>
+      </div>`;
+  }
+}
+
+function modelColor(cfg) {
+  return cfg.mode === 'normal' ? normalColor(cfg.frac) : gcColor(cfg.frac, cfg.lambda_gc);
+}
+
+function buildTable(d) {
+  const baseH   = d.histories[d.baseline];
+  const baseAcc = baseH ? baseH.test_acc.at(-1) : null;
+
+  // Index Normal par fraction pour comparaison GradCAM vs Normal même %
+  const normalByFrac = {};
+  d.configs.forEach(c => {
+    if (c.mode === 'normal' && d.histories[c.name]) {
+      normalByFrac[Math.round(c.frac * 100)] = d.histories[c.name].test_acc.at(-1);
+    }
+  });
+
+  const tbody = document.getElementById('table-body');
+
+  d.configs.forEach(cfg => {
+    const h = d.histories[cfg.name]; if (!h) return;
+    const acc   = h.test_acc.at(-1);
+    const iou   = d.iou_scores[cfg.name] || 0;
+    const delta = baseAcc !== null ? acc - baseAcc : null;
+
+    const deltaStr = delta === null ? '\u2014' : `${delta >= 0 ? '+' : ''}${delta.toFixed(2)}%`;
+    const deltaCls = delta === null ? 'delta-neu' : delta > 0.3 ? 'delta-pos' : delta < -0.3 ? 'delta-neg' : 'delta-neu';
+
+    // Colonne GradCAM vs Normal même %
+    let vsNormStr = '\u2014';
+    let vsNormCls = 'delta-neu';
+    if (cfg.mode === 'gradcam') {
+      const normAcc = normalByFrac[Math.round(cfg.frac * 100)];
+      if (normAcc !== undefined) {
+        const diff = acc - normAcc;
+        vsNormStr = `${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%`;
+        vsNormCls = diff > 0.3 ? 'delta-pos' : diff < -0.3 ? 'delta-neg' : 'delta-neu';
+      }
+    }
+
+    const pct = Math.round(cfg.frac * 100);
+    const bar = `<div class="frac-bar-wrap">
+           <div class="frac-bar" style="width:${pct}px;background:#3a4060"></div>
+           <span>${pct}%</span>
+         </div>`;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${prettyName(cfg.name)}</strong></td>
+      <td>${cfg.n_train.toLocaleString()}</td>
+      <td>${bar}</td>
+      <td><span>${acc.toFixed(2)}</span></td>
+      <td><span class="${deltaCls}">${deltaStr}</span></td>
+      <td><span class="${vsNormCls}">${vsNormStr}</span></td>
+      <td><span>${(iou * 100).toFixed(1)}%</span></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function buildCharts(d) {
+  const labels = d.epochs;
+  const baseH   = d.histories[d.baseline];
+  const baseAcc = baseH ? baseH.test_acc.at(-1) : null;
+
+  function mk(id, key) {
+    const datasets = d.configs
+      .filter(c => d.histories[c.name])
+      .map(c => ({
+        label: prettyName(c.name),
+        data: d.histories[c.name][key],
+        borderColor: modelColor(c),
+        backgroundColor: modelColor(c) + '22',
+        borderWidth: c.frac >= 1.0 ? 2.5 : 1.4,
+        borderDash: c.mode === 'gradcam' ? [5, 3] : [],
+        tension: .3,
+        pointRadius: 0,
+        order: c.frac >= 1.0 ? 0 : 1,
+      }));
+
+    // Ligne horizontale de référence : Normal 100% (uniquement sur l'accuracy)
+    if (key === 'test_acc' && baseAcc !== null) {
+      datasets.push({
+        label: `Référence Normal 100% (${baseAcc.toFixed(1)}%)`,
+        data: Array(labels.length).fill(baseAcc),
+        borderColor: '#aaa',
+        borderWidth: 1.5,
+        borderDash: [2, 4],
+        pointRadius: 0,
+        tension: 0,
+        order: -1,
+      });
+    }
+
+    return new Chart(document.getElementById(id).getContext('2d'), {
+      type: 'line', data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#8892a4', font: { size: 8 }, boxWidth: 10 } },
+          datalabels: { display: false },
+        },
+        scales: {
+          y: { grid: { color: '#2a2f45' }, ticks: { color: '#8892a4' } },
+          x: { title: { display: true, text: 'Epoch', color: '#aab' },
+               grid: { color: '#2a2f45' }, ticks: { color: '#8892a4' } },
+        }
+      }
+    });
+  }
+  mk('ch-acc',  'test_acc');
+  mk('ch-loss', 'test_loss');
+}
+
+function buildBarChart(d) {
+  const baseH   = d.histories[d.baseline];
+  const baseAcc = baseH ? baseH.test_acc.at(-1) : null;
+
+  // Collecter les fractions uniques (incluant 100%) — ordre croissant pour
+  // raconter l'histoire « plus de données → meilleure perf »
+  const fracs = [...new Set(d.configs.map(c => Math.round(c.frac * 100)))].sort((a,b) => a - b);
+  const labels = fracs.map(f => `${f}%`);
+
+  // Index par fraction et par λ
+  const normalAccByFrac = {};
+  const gcAccByLam = {};   // { lam: { pct: acc } }
+  d.configs.forEach(c => {
+    const h = d.histories[c.name]; if (!h) return;
+    const pct = Math.round(c.frac * 100);
+    if (c.mode === 'normal') {
+      normalAccByFrac[pct] = h.test_acc.at(-1);
+    } else {
+      if (!gcAccByLam[c.lambda_gc]) gcAccByLam[c.lambda_gc] = {};
+      gcAccByLam[c.lambda_gc][pct] = h.test_acc.at(-1);
+    }
+  });
+
+  const normalAccs = fracs.map(f => normalAccByFrac[f] ?? null);
+  const lambdas    = Object.keys(gcAccByLam).map(parseFloat).sort((a, b) => a - b);
+  const lamSeries  = lambdas.map(lam => ({
+    lam,
+    accs: fracs.map(f => gcAccByLam[lam][f] ?? null),
+  }));
+
+  const allVals = [...normalAccs, ...lamSeries.flatMap(s => s.accs)].filter(v => v !== null);
+  const minY = allVals.length ? Math.max(0, Math.min(...allVals) - 8) : 0;
+
+  const datasets = [
+    {
+      type: 'bar',
+      label: 'Normal',
+      data: normalAccs,
+      backgroundColor: fracs.map(f => normalColor(f / 100)),
+      borderColor: fracs.map(f => normalColor(f / 100)),
+      borderWidth: 1,
+      order: 2,
+    },
+    ...lamSeries.map(s => ({
+      type: 'bar',
+      label: `Guided GradCAM λ=${s.lam}`,
+      data: s.accs,
+      backgroundColor: fracs.map(f => gcColor(f / 100, s.lam)),
+      borderColor: fracs.map(f => gcColor(f / 100, s.lam)),
+      borderWidth: 1,
+      order: 2,
+    })),
+  ];
+  if (baseAcc) {
+    datasets.push({
+      type: 'line',
+      label: `Normal 100% (${baseAcc.toFixed(1)}%)`,
+      data: Array(labels.length).fill(baseAcc),
+      borderColor: C_NORMAL,
+      borderWidth: 2.5,
+      borderDash: [8, 4],
+      pointRadius: 0,
+      fill: false,
+      order: 1,
+    });
+  }
+
+  const hasDL = !!window.ChartDataLabels;
+
+  new Chart(document.getElementById('ch-bar').getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { labels: { color: '#8892a4', font: { size: 10 }, boxWidth: 15 } },
+        datalabels: hasDL ? {
+          display: ctx => ctx.dataset.type !== 'line' && ctx.dataset.data[ctx.dataIndex] != null,
+          anchor: 'end', align: 'end', offset: 2,
+          color: '#e0e0e0', font: { size: 9, weight: '600' },
+          formatter: v => v == null ? '' : v.toFixed(1),
+        } : undefined,
+      },
+      scales: {
+        y: {
+          min: minY,
+          title: { display: true, text: 'Test Accuracy (%)', color: '#aab' },
+          grid: { color: '#2a2f45' }, ticks: { color: '#8892a4' },
+        },
+        x: {
+          title: { display: true, text: 'Fraction des donn\u00e9es d\'entra\u00eenement', color: '#aab' },
+          grid: { color: '#2a2f45' }, ticks: { color: '#8892a4' },
+        },
+      }
+    }
+  });
+}
+
+// Synthèse Loss : même structure que buildBarChart mais sur test_loss
+function buildBarChartLoss(d) {
+  const baseH    = d.histories[d.baseline];
+  const baseLoss = baseH ? baseH.test_loss.at(-1) : null;
+
+  const fracs  = [...new Set(d.configs.map(c => Math.round(c.frac * 100)))].sort((a,b) => a - b);
+  const labels = fracs.map(f => `${f}%`);
+
+  const normalLossByFrac = {};
+  const gcLossByLam = {};   // { lam: { pct: loss } }
+  d.configs.forEach(c => {
+    const h = d.histories[c.name]; if (!h) return;
+    const pct = Math.round(c.frac * 100);
+    if (c.mode === 'normal') {
+      normalLossByFrac[pct] = h.test_loss.at(-1);
+    } else {
+      if (!gcLossByLam[c.lambda_gc]) gcLossByLam[c.lambda_gc] = {};
+      gcLossByLam[c.lambda_gc][pct] = h.test_loss.at(-1);
+    }
+  });
+
+  const normalLosses = fracs.map(f => normalLossByFrac[f] ?? null);
+  const lambdas      = Object.keys(gcLossByLam).map(parseFloat).sort((a, b) => a - b);
+  const lamSeries    = lambdas.map(lam => ({
+    lam,
+    losses: fracs.map(f => gcLossByLam[lam][f] ?? null),
+  }));
+
+  const datasets = [
+    {
+      type: 'bar',
+      label: 'Normal',
+      data: normalLosses,
+      backgroundColor: fracs.map(f => normalColor(f / 100)),
+      borderColor:     fracs.map(f => normalColor(f / 100)),
+      borderWidth: 1,
+      order: 2,
+    },
+    ...lamSeries.map(s => ({
+      type: 'bar',
+      label: `Guided GradCAM λ=${s.lam}`,
+      data: s.losses,
+      backgroundColor: fracs.map(f => gcColor(f / 100, s.lam)),
+      borderColor:     fracs.map(f => gcColor(f / 100, s.lam)),
+      borderWidth: 1,
+      order: 2,
+    })),
+  ];
+  if (baseLoss !== null) {
+    datasets.push({
+      type: 'line',
+      label: `Normal 100% (${baseLoss.toFixed(3)})`,
+      data: Array(labels.length).fill(baseLoss),
+      borderColor: C_NORMAL,
+      borderWidth: 2.5,
+      borderDash: [8, 4],
+      pointRadius: 0,
+      fill: false,
+      order: 1,
+    });
+  }
+
+  const hasDL = !!window.ChartDataLabels;
+
+  new Chart(document.getElementById('ch-bar-loss').getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { labels: { color: '#8892a4', font: { size: 10 }, boxWidth: 15 } },
+        datalabels: hasDL ? {
+          display: ctx => ctx.dataset.type !== 'line' && ctx.dataset.data[ctx.dataIndex] != null,
+          anchor: 'end', align: 'end', offset: 2,
+          color: '#e0e0e0', font: { size: 9, weight: '600' },
+          formatter: v => v == null ? '' : v.toFixed(3),
+        } : undefined,
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Test Loss', color: '#aab' },
+          grid: { color: '#2a2f45' }, ticks: { color: '#8892a4' },
+        },
+        x: {
+          title: { display: true, text: 'Fraction des données d\'entraînement', color: '#aab' },
+          grid: { color: '#2a2f45' }, ticks: { color: '#8892a4' },
+        },
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>

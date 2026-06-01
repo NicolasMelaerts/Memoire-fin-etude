@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expérience 0 - Sélection du λ optimal par grid search</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f1117;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a1f36 0%, #0f1117 100%);
+            border-bottom: 1px solid #2a2f45;
+            padding: 32px 40px;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: #8892a4;
+            font-size: 0.95rem;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .section {
+            background: #1a1f2e;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border: 1px solid #2a2f45;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #2a2f45;
+        }
+
+        /* Tableau récapitulatif */
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #141824;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .summary-table th,
+        .summary-table td {
+            padding: 14px 18px;
+            text-align: left;
+            border-bottom: 1px solid #2a2f45;
+        }
+
+        .summary-table th {
+            background: #232838;
+            color: #8892a4;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .summary-table tr:hover {
+            background: #1f2438;
+        }
+
+        .summary-table .strategy-cell {
+            font-weight: bold;
+        }
+
+        .summary-table .lambda-best {
+            font-weight: bold;
+            color: #4CAF50;
+            background: #1a3a1a;
+            padding: 4px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            font-family: 'Menlo', 'Consolas', monospace;
+        }
+
+        .summary-table .lambda-chosen {
+            font-weight: bold;
+            color: #FFA726;
+            background: #3a2a10;
+            padding: 4px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            font-family: 'Menlo', 'Consolas', monospace;
+        }
+
+        /* === Sélection finale (one-SE) === */
+        .onese-section {
+            background: linear-gradient(135deg, #2a1f1a 0%, #1a1f2e 100%);
+            border: 1px solid #FFA726;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .onese-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .onese-card {
+            background: #141824;
+            border-radius: 10px;
+            padding: 18px 20px;
+            border: 2px solid #2a2f45;
+            border-left-width: 5px;
+            transition: transform 0.15s;
+        }
+
+        .onese-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .onese-card .strat-name {
+            font-size: 0.85rem;
+            color: #aab;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .onese-card .lambda-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #FFA726;
+            font-family: 'Menlo', 'Consolas', monospace;
+            margin-bottom: 8px;
+        }
+
+        .onese-card .lambda-context {
+            font-size: 0.78rem;
+            color: #8892a4;
+            line-height: 1.5;
+        }
+
+        .onese-card .lambda-context strong {
+            color: #4CAF50;
+        }
+
+        .code-snippet {
+            background: #0a0d14;
+            border-radius: 6px;
+            padding: 14px 16px;
+            font-family: 'Menlo', 'Consolas', monospace;
+            font-size: 0.85rem;
+            color: #d4d4d4;
+            overflow-x: auto;
+            margin-top: 14px;
+            border: 1px solid #2a2f45;
+        }
+
+        .code-snippet .key { color: #9CDCFE; }
+        .code-snippet .val { color: #FFA726; }
+        .code-snippet .com { color: #6a9955; font-style: italic; }
+
+        /* === Highlight de la ligne 1-SE dans le tableau de détail === */
+        .detail-table tr.row-chosen td {
+            background: #3a2a10 !important;
+            color: #FFA726;
+            font-weight: bold;
+        }
+
+        .detail-table tr.row-best.row-chosen td {
+            /* Quand la même ligne est à la fois min ET retenue (couleur intermédiaire) */
+            background: #2a3a1a !important;
+            color: #ffd54f;
+        }
+
+        .summary-table code {
+            background: #232838;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.85rem;
+        }
+
+        /* Section par stratégie */
+        .strategy-block {
+            background: #1a1f2e;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid #2a2f45;
+            border-left-width: 5px;
+        }
+
+        .strategy-block h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .strategy-block .subtitle {
+            color: #8892a4;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+
+        .strategy-block .best-banner {
+            background: #1a3a1a;
+            border: 1px solid #4CAF50;
+            color: #b9f6ca;
+            padding: 10px 16px;
+            border-radius: 6px;
+            margin-bottom: 18px;
+            font-size: 0.95rem;
+        }
+
+        .strategy-block .best-banner strong {
+            color: #4CAF50;
+            font-family: 'Menlo', 'Consolas', monospace;
+        }
+
+        .charts-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-card {
+            background: #141824;
+            border-radius: 8px;
+            padding: 18px;
+            border: 1px solid #2a2f45;
+        }
+
+        .chart-card h3 {
+            font-size: 0.95rem;
+            color: #aab;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .chart-card canvas {
+            max-height: 280px;
+        }
+
+        /* Petit tableau de détail par stratégie */
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #141824;
+            border-radius: 6px;
+            overflow: hidden;
+            font-size: 0.85rem;
+        }
+
+        .detail-table th,
+        .detail-table td {
+            padding: 8px 12px;
+            text-align: right;
+            border-bottom: 1px solid #232838;
+        }
+
+        .detail-table th:first-child,
+        .detail-table td:first-child {
+            text-align: left;
+        }
+
+        .detail-table th {
+            background: #232838;
+            color: #8892a4;
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+        }
+
+        .detail-table tr.row-best {
+            background: #1a3a1a !important;
+            color: #b9f6ca;
+            font-weight: bold;
+        }
+
+        .detail-table code {
+            background: #232838;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: 'Menlo', 'Consolas', monospace;
+        }
+
+        /* Légende méthodologie */
+        .method-card {
+            background: #141824;
+            padding: 16px 20px;
+            border-radius: 8px;
+            border-left: 4px solid #2196F3;
+            margin-bottom: 12px;
+        }
+
+        .method-card h3 {
+            color: #2196F3;
+            font-size: 1rem;
+            margin-bottom: 8px;
+        }
+
+        .method-card p,
+        .method-card ul {
+            color: #8892a4;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+
+        .method-card ul {
+            margin-left: 22px;
+            margin-top: 6px;
+        }
+
+        .method-card code {
+            background: #232838;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #e0e0e0;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>🔬 Expérience 0 : Sélection du λ optimal par grid search</h1>
+        <p>Pour chaque stratégie régularisée, recherche du λ qui minimise la
+            Cross-Entropy sur le set de validation.</p>
+    </header>
+
+    <div class="container">
+
+        <!-- ================== MÉTHODOLOGIE ================== -->
+        <div class="section">
+            <div class="section-title">📚 Méthodologie</div>
+
+            <div class="method-card">
+                <h3>Split du dataset</h3>
+                <p>Le dataset complet est divisé en trois parties&nbsp;:</p>
+                <ul>
+                    <li><strong>Test</strong> (25 % du total) - figé, identique à exp1, <em>jamais utilisé pour
+                            sélectionner λ</em>.</li>
+                    <li><strong>Train</strong> (≈ 56 % du total) - utilisé pour apprendre les poids.</li>
+                    <li><strong>Validation</strong> (≈ 19 % du total) - utilisé uniquement pour évaluer chaque λ
+                        candidat.</li>
+                </ul>
+            </div>
+
+            <div class="method-card">
+                <h3>Critère et agrégation multi-seed</h3>
+                <p id="methodology-datasets">Pour chaque λ, on entraîne le modèle pendant
+                    le nombre d'epochs fixé dans <code>config.py</code> sur plusieurs
+                    datasets distincts (un par seed de génération), puis on évalue la
+                    <strong>Cross-Entropy pure</strong> sur le set de validation (sans
+                    pénalité, pour ne pas biaiser le choix par la grandeur du terme
+                    régularisant). Les courbes affichent la <strong>moyenne</strong>
+                    sur les seeds, la bande grisée représente <strong>±1 écart-type</strong>.</p>
+            </div>
+
+            <div class="method-card" style="border-left-color:#FFA726;">
+                <h3 style="color:#FFA726;">Sélection finale par one-standard-error rule</h3>
+                <p>On retient le <strong>plus grand λ</strong> dont la val loss
+                    moyenne reste à <strong>au plus un écart-type</strong> du minimum
+                    observé. Sous l'hypothèse que <em>λ plus grand ⇒ adhésion plus
+                        forte aux explications fournies</em>, ce critère privilégie
+                    l'explicabilité sans dégrader significativement la performance.
+                    Référence&nbsp;: Hastie, Tibshirani &amp; Friedman,
+                    <em>The Elements of Statistical Learning</em>, ch. 7.10.</p>
+            </div>
+        </div>
+
+        <!-- ================== SÉLECTION FINALE (1-SE) ================== -->
+        <div class="onese-section">
+            <div class="section-title" style="color:#FFA726; border-color:#FFA726;">
+                🎯 Sélection finale : λ retenu par one-standard-error rule
+            </div>
+            <p style="color:#8892a4; font-size:0.9rem; margin-bottom:18px;">
+                Pour chaque stratégie, le plus grand λ dont la val loss moyenne reste
+                à au plus 1&nbsp;σ du minimum. Ces valeurs seront utilisées dans les
+                expériences finales (chapitres 1-4).
+            </p>
+            <div class="onese-grid" id="onese-cards"></div>
+            <div class="code-snippet" id="onese-snippet"></div>
+        </div>
+
+        <!-- ================== UN BLOC PAR STRATÉGIE ================== -->
+        <div class="section" style="background: transparent; border: none; padding: 0;">
+            <div class="section-title" style="background:#1a1f2e; padding:18px 24px; border-radius:10px; border-left:5px solid #8892a4;">
+                📈 Détail par stratégie
+            </div>
+        </div>
+        <div id="strategy-blocks"></div>
+
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        (function () {
+            const data = window.GRIDSEARCH_DATA || {};
+            const strategies = Object.keys(data);
+
+            if (strategies.length === 0) {
+                document.querySelector('.container').insertAdjacentHTML('afterbegin',
+                    '<div class="section"><p style="color:#f44336">' +
+                    "Aucune donnée disponible. Lance d'abord <code>python run_exp0.py</code>." +
+                    '</p></div>');
+                return;
+            }
+
+            // ----- Helpers -----
+            function fmt(v, d) { return (v === null || v === undefined) ? '-' : v.toFixed(d); }
+
+            function indexOfMin(arr) {
+                let mi = 0;
+                for (let i = 1; i < arr.length; i++) {
+                    if (arr[i] < arr[mi]) mi = i;
+                }
+                return mi;
+            }
+
+            // One-standard-error rule : retourne l'index du plus grand λ dont la
+            // moyenne reste à ≤ min + σ_min.
+            function oneSeIndex(means, stds, lambdas) {
+                const idxBest = indexOfMin(means);
+                const threshold = means[idxBest] + stds[idxBest];
+                let chosenIdx = idxBest;
+                let chosenLambda = lambdas[idxBest];
+                for (let i = 0; i < means.length; i++) {
+                    if (means[i] <= threshold && lambdas[i] > chosenLambda) {
+                        chosenIdx = i;
+                        chosenLambda = lambdas[i];
+                    }
+                }
+                return { idx: chosenIdx, threshold: threshold };
+            }
+
+            // Pour transparenter une couleur hex (#RRGGBB) en RGBA
+            function hexToRgba(hex, alpha) {
+                const h = hex.replace('#', '');
+                const r = parseInt(h.substring(0, 2), 16);
+                const g = parseInt(h.substring(2, 4), 16);
+                const b = parseInt(h.substring(4, 6), 16);
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            }
+
+            // Patch de la note méthodologie pour lister les datasets utilisés
+            const firstStrat = data[strategies[0]];
+            if (firstStrat && firstStrat.datasets && firstStrat.datasets.length > 0) {
+                const note = document.getElementById('methodology-datasets');
+                if (note) {
+                    note.innerHTML +=
+                        ' <br><br><strong>Datasets utilisés (' + firstStrat.n_seeds + ' seeds)&nbsp;:</strong> ' +
+                        firstStrat.datasets.map(d => '<code>' + d + '</code>').join(', ') + '.';
+                }
+            }
+
+            // ----- Cartes de sélection finale (one-SE) -----
+            const oneseCardsRoot = document.getElementById('onese-cards');
+            const chosenLambdas = {};
+            strategies.forEach(name => {
+                const d = data[name];
+                const oneSe   = oneSeIndex(d.val_loss_final_mean, d.val_loss_final_std, d.lambdas);
+                const idxChosen = oneSe.idx;
+                chosenLambdas[name] = d.lambdas[idxChosen];
+
+                const contextHTML = `val_loss = ${fmt(d.val_loss_final_mean[idxChosen], 4)} ± ${fmt(d.val_loss_final_std[idxChosen], 4)}`;
+
+                oneseCardsRoot.insertAdjacentHTML('beforeend', `
+                    <div class="onese-card" style="border-left-color:${d.color}">
+                        <div class="strat-name" style="color:${d.color}">${name}</div>
+                        <div class="lambda-value">λ = ${d.lambdas[idxChosen]}</div>
+                        <div class="lambda-context">${contextHTML}</div>
+                    </div>
+                `);
+            });
+
+            // Snippet Python prêt à coller
+            const snippet = document.getElementById('onese-snippet');
+            const snippetLines = [
+                '<span class="com"># Valeurs retenues par one-standard-error rule (à coller dans une config)</span>',
+                'CHOSEN_LAMBDAS = {',
+            ];
+            strategies.forEach(name => {
+                const padded = (`'${name}'`).padEnd(22, ' ');
+                snippetLines.push(`    <span class="key">${padded}</span>: <span class="val">${chosenLambdas[name]}</span>,`);
+            });
+            snippetLines.push('}');
+            snippet.innerHTML = snippetLines.join('\n');
+
+            // ----- Un bloc par stratégie -----
+            const blocksRoot = document.getElementById('strategy-blocks');
+            strategies.forEach(name => {
+                const d = data[name];
+                const oneSe   = oneSeIndex(d.val_loss_final_mean, d.val_loss_final_std, d.lambdas);
+                const idxChosen = oneSe.idx;
+
+                const blockId = `block-${name.replace(/\s+/g, '-')}`;
+                const lossCanvasId = `chart-loss-${name.replace(/\s+/g, '-')}`;
+                const accCanvasId = `chart-acc-${name.replace(/\s+/g, '-')}`;
+
+                let detailRows = '';
+                for (let i = 0; i < d.lambdas.length; i++) {
+                    const classes = [];
+                    if (i === idxChosen) classes.push('row-chosen');
+                    const cls = classes.length ? ` class="${classes.join(' ')}"` : '';
+                    const marker = (i === idxChosen) ? ' &nbsp;★ retenu (1-SE)' : '';
+                    detailRows += `
+                <tr${cls}>
+                    <td><code>λ = ${d.lambdas[i]}</code>${marker}</td>
+                    <td>${fmt(d.val_loss_final_mean[i], 4)} ± ${fmt(d.val_loss_final_std[i], 4)}</td>
+                    <td>${fmt(d.val_acc_final_mean[i], 1)} % ± ${fmt(d.val_acc_final_std[i], 1)}</td>
+                    <td>${fmt(d.val_loss_best_mean[i], 4)} ± ${fmt(d.val_loss_best_std[i], 4)}</td>
+                    <td>${fmt(d.val_acc_best_mean[i], 1)} % ± ${fmt(d.val_acc_best_std[i], 1)}</td>
+                    <td>${fmt(d.best_epoch_mean[i], 1)}</td>
+                    <td>${fmt(d.duration_total[i], 1)} s</td>
+                </tr>`;
+                }
+
+                const bannerHTML = `<span style="color:#FFA726">★ λ retenu (1-SE)&nbsp;:</span>
+                       <strong style="color:#FFA726">${d.lambdas[idxChosen]}</strong>
+                       &nbsp;-&nbsp; val_loss = ${fmt(d.val_loss_final_mean[idxChosen], 4)} ± ${fmt(d.val_loss_final_std[idxChosen], 4)},
+                       val_acc = ${fmt(d.val_acc_final_mean[idxChosen], 1)} % ± ${fmt(d.val_acc_final_std[idxChosen], 1)}.`;
+
+                blocksRoot.insertAdjacentHTML('beforeend', `
+            <div class="strategy-block" id="${blockId}" style="border-left-color:${d.color}">
+                <h2 style="color:${d.color}">${name}</h2>
+                <p class="subtitle">${d.lambdas.length} valeurs de λ × ${d.n_seeds} seeds = ${d.lambdas.length * d.n_seeds} entraînements. Bande&nbsp;: ±1σ.</p>
+
+                <div class="best-banner">
+                    ${bannerHTML}
+                </div>
+
+                <div class="charts-pair">
+                    <div class="chart-card">
+                        <h3>Validation Loss vs λ &nbsp;(moy. ± σ sur ${d.n_seeds} seeds)</h3>
+                        <canvas id="${lossCanvasId}"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Validation Accuracy vs λ &nbsp;(moy. ± σ sur ${d.n_seeds} seeds)</h3>
+                        <canvas id="${accCanvasId}"></canvas>
+                    </div>
+                </div>
+
+                <table class="detail-table">
+                    <thead>
+                        <tr>
+                            <th>λ</th>
+                            <th>Val Loss (final, moy ± σ)</th>
+                            <th>Val Acc (final, moy ± σ)</th>
+                            <th>Val Loss (best epoch, moy ± σ)</th>
+                            <th>Val Acc (best epoch, moy ± σ)</th>
+                            <th>Best Epoch (moy)</th>
+                            <th>Durée totale</th>
+                        </tr>
+                    </thead>
+                    <tbody>${detailRows}</tbody>
+                </table>
+            </div>
+        `);
+
+                // Charts
+                const labels = d.lambdas;
+                const commonScales = {
+                    x: {
+                        type: 'logarithmic',
+                        title: { display: true, text: 'λ', color: '#aab' },
+                        ticks: { color: '#aab' },
+                        grid: { color: '#2a2f45' },
+                    },
+                    y: {
+                        ticks: { color: '#aab' },
+                        grid: { color: '#2a2f45' },
+                    },
+                };
+
+                const chosenLambda = d.lambdas[idxChosen];
+                const buildVerticalLines = function (canvasId) {
+                    return {
+                        id: 'verticalLines-' + canvasId,
+                        afterDraw: function (chart) {
+                            const xScale = chart.scales.x;
+                            if (!xScale) return;
+                            const ctx = chart.ctx;
+
+                            // λ retenu (1-SE) — orange
+                            const xChosen = xScale.getPixelForValue(chosenLambda);
+                            ctx.save();
+                            ctx.strokeStyle = '#FFA726';
+                            ctx.setLineDash([6, 4]);
+                            ctx.lineWidth = 2.5;
+                            ctx.beginPath();
+                            ctx.moveTo(xChosen, chart.chartArea.top);
+                            ctx.lineTo(xChosen, chart.chartArea.bottom);
+                            ctx.stroke();
+                            // Petit label "★ retenu" en haut
+                            ctx.fillStyle = '#FFA726';
+                            ctx.font = 'bold 11px sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText('★ retenu', xChosen, chart.chartArea.top + 12);
+                            ctx.restore();
+                        }
+                    };
+                };
+
+                // Construit les 3 datasets nécessaires pour rendre une bande ±σ :
+                //   [0] borne sup (mean+σ)  -- fill: '+1' (descend jusqu'à la borne inf)
+                //   [1] borne inf (mean-σ)
+                //   [2] ligne moyenne (par-dessus)
+                // Plus optionnellement les points par seed en gris.
+                function buildErrorBandDatasets(meanArr, stdArr, perSeedArr, mainLabel, color) {
+                    const upper = meanArr.map((v, i) => ({ x: labels[i], y: v + stdArr[i] }));
+                    const lower = meanArr.map((v, i) => ({ x: labels[i], y: v - stdArr[i] }));
+                    const mean  = meanArr.map((v, i) => ({ x: labels[i], y: v }));
+
+                    const sets = [
+                        {
+                            label: '_upper',
+                            data: upper,
+                            borderColor: 'transparent',
+                            backgroundColor: hexToRgba(color, 0.18),
+                            pointRadius: 0,
+                            fill: '+1',
+                        },
+                        {
+                            label: '_lower',
+                            data: lower,
+                            borderColor: 'transparent',
+                            backgroundColor: 'transparent',
+                            pointRadius: 0,
+                            fill: false,
+                        },
+                        {
+                            label: mainLabel,
+                            data: mean,
+                            borderColor: color,
+                            backgroundColor: color,
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            tension: 0.2,
+                            fill: false,
+                        },
+                    ];
+
+                    // Points individuels par seed (petits, en gris semi-transparent)
+                    if (perSeedArr && perSeedArr.length > 0) {
+                        const seedColors = ['#90A4AE', '#78909C', '#607D8B', '#546E7A'];
+                        perSeedArr.forEach((seedVals, sIdx) => {
+                            sets.push({
+                                label: '_seed_' + sIdx,
+                                data: seedVals.map((v, i) => ({ x: labels[i], y: v })),
+                                borderColor: 'transparent',
+                                backgroundColor: seedColors[sIdx % seedColors.length],
+                                pointRadius: 2.5,
+                                pointHoverRadius: 5,
+                                showLine: false,
+                                fill: false,
+                            });
+                        });
+                    }
+                    return sets;
+                }
+
+                const lossDatasets = buildErrorBandDatasets(
+                    d.val_loss_final_mean, d.val_loss_final_std,
+                    d.per_seed_loss_final,
+                    'Val CE (moy.)', d.color
+                );
+                const accDatasets = buildErrorBandDatasets(
+                    d.val_acc_final_mean, d.val_acc_final_std,
+                    d.per_seed_acc_final,
+                    'Val Accuracy (%, moy.)', d.color
+                );
+
+                // Filtre la légende pour ne pas montrer les datasets internes
+                const legendFilter = (item) => !item.text.startsWith('_');
+
+                new Chart(document.getElementById(lossCanvasId).getContext('2d'), {
+                    type: 'line',
+                    data: { labels: labels, datasets: lossDatasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: commonScales,
+                        plugins: {
+                            legend: { labels: { color: '#aab', filter: legendFilter } },
+                            tooltip: {
+                                filter: (ctx) => !(ctx.dataset.label || '').startsWith('_upper')
+                                                && !(ctx.dataset.label || '').startsWith('_lower'),
+                                callbacks: {
+                                    title: items => `λ = ${items[0].parsed.x}`,
+                                    label: ctx => {
+                                        const lbl = ctx.dataset.label || '';
+                                        if (lbl.startsWith('_seed_')) {
+                                            const sIdx = parseInt(lbl.split('_').pop(), 10);
+                                            const dsName = (d.datasets && d.datasets[sIdx]) || ('seed ' + sIdx);
+                                            return `${dsName} : ${ctx.parsed.y.toFixed(4)}`;
+                                        }
+                                        const i = ctx.dataIndex;
+                                        return `val_loss = ${d.val_loss_final_mean[i].toFixed(4)} ± ${d.val_loss_final_std[i].toFixed(4)}`;
+                                    },
+                                }
+                            },
+                        }
+                    },
+                    plugins: [buildVerticalLines(lossCanvasId)],
+                });
+
+                new Chart(document.getElementById(accCanvasId).getContext('2d'), {
+                    type: 'line',
+                    data: { labels: labels, datasets: accDatasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: commonScales,
+                        plugins: {
+                            legend: { labels: { color: '#aab', filter: legendFilter } },
+                            tooltip: {
+                                filter: (ctx) => !(ctx.dataset.label || '').startsWith('_upper')
+                                                && !(ctx.dataset.label || '').startsWith('_lower'),
+                                callbacks: {
+                                    title: items => `λ = ${items[0].parsed.x}`,
+                                    label: ctx => {
+                                        const lbl = ctx.dataset.label || '';
+                                        if (lbl.startsWith('_seed_')) {
+                                            const sIdx = parseInt(lbl.split('_').pop(), 10);
+                                            const dsName = (d.datasets && d.datasets[sIdx]) || ('seed ' + sIdx);
+                                            return `${dsName} : ${ctx.parsed.y.toFixed(1)} %`;
+                                        }
+                                        const i = ctx.dataIndex;
+                                        return `val_acc = ${d.val_acc_final_mean[i].toFixed(1)} % ± ${d.val_acc_final_std[i].toFixed(1)}`;
+                                    },
+                                }
+                            },
+                        }
+                    },
+                    plugins: [buildVerticalLines(accCanvasId)],
+                });
+            });
+        })();
+    </script>
+</body>
+
+</html>

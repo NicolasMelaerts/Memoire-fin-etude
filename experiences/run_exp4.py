@@ -27,7 +27,6 @@ Résultats :
     Résultats/exp4/exp4.html (double-cliquer pour ouvrir)
 """
 import os
-import sys
 import json
 import shutil
 import argparse
@@ -37,10 +36,7 @@ import pandas as pd
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
-# Ajouter le dossier courant au path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import torch
+import init_env  # noqa: F401  (side effects: sys.path + DATASET_PATH)
 
 from utils import set_seed, generate_gradcam_examples, plot_comparison
 from shared.config import DEVICE, EPOCHS, SEED, ANNOTATIONS, IMAGES_DIR, HEATMAPS_DIR, BATCH_SIZE
@@ -131,7 +127,7 @@ def compute_confusion_matrix(model, test_loader, device, df_ref=None):
 
     return result
 
-# Support custom results dir pour exécution parallèle (BIG_EXPERIENCE)
+# Prise en charge d'un dossier de résultats personnalisé
 RESULTS_DIR = os.path.join(
     os.environ.get('CUSTOM_RESULTS_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Résultats')),
     'exp4'
@@ -487,10 +483,8 @@ if __name__ == "__main__":
     strategies_to_run = [
         ('Normal',          NormalStrategy()),
         ('GradCAM (λ=0.1)', GradCAMStrategy(lambda_gc=0.1)),
-        ('GradCAM (λ=0.25)', GradCAMStrategy(lambda_gc=0.25)),
-        ('GradCAM (λ=0.5)', GradCAMStrategy(lambda_gc=0.5)),
-        ('GradCAM (λ=0.75)', GradCAMStrategy(lambda_gc=0.75)),
-        ('GradCAM (λ=1)', GradCAMStrategy(lambda_gc=1))
+        ('GradCAM (λ=0.3)', GradCAMStrategy(lambda_gc=0.3)),
+        ('GradCAM (λ=0.5)', GradCAMStrategy(lambda_gc=0.5))
     ]
 
     # ===== SCÉNARIO 1 : Biais standard (90/10) =====
@@ -539,10 +533,8 @@ if __name__ == "__main__":
     radical_strategies = [
         ('Normal',          NormalStrategy()),
         ('GradCAM (λ=0.1)', GradCAMStrategy(lambda_gc=0.1)),
-        ('GradCAM (λ=0.25)', GradCAMStrategy(lambda_gc=0.25)),
+        ('GradCAM (λ=0.3)', GradCAMStrategy(lambda_gc=0.3)),
         ('GradCAM (λ=0.5)', GradCAMStrategy(lambda_gc=0.5)),
-        ('GradCAM (λ=0.75)', GradCAMStrategy(lambda_gc=0.75)),
-        ('GradCAM (λ=1)', GradCAMStrategy(lambda_gc=1))
     ]
 
     (radical_histories, radical_durations, radical_bias_stats,

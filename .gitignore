@@ -8,12 +8,16 @@
 *.synctex.gz
 *.bbl
 *.blg
+*.pdf
+*.nav
+*.snm
+*.xdv
 .DS_Store
-.bib
 
-
-# Mémoire canevas
+# Mémoire canevas, rédaction et présentation
 Memoire-canevas/
+redaction_memoire/
+presentation_memoire/
 
 # Editor temporary files
 .vscode/
@@ -23,6 +27,7 @@ Memoire-canevas/
 # Generated Datasets
 dataset_creator/generated_dataset/
 generated_dataset/
+experiences/datasets/
 
 # Résultats générés (images, métriques, data.js)
 experiences/Résultats/

@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Résultats Agrégés - 20 Datasets</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f1117;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .container { max-width: 1600px; margin: 0 auto; }
+        .header {
+            background: linear-gradient(135deg, #1a1f36 0%, #0f1117 100%);
+            border-bottom: 1px solid #2a2f45;
+            padding: 32px 40px;
+            margin-bottom: 32px;
+        }
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .header p {
+            color: #8892a4;
+            font-size: 0.95rem;
+        }
+        .info-box {
+            background: #1a1f2e;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 0 auto 30px;
+            max-width: 1600px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid #2a2f45;
+        }
+        .info-box h2 {
+            color: #fff;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        .info-box p {
+            color: #e0e0e0;
+            margin-bottom: 8px;
+        }
+        .info-box strong {
+            color: #3F51B5;
+        }
+        .experiment-section {
+            background: #1a1f2e;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 0 auto 30px;
+            max-width: 1600px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid #2a2f45;
+        }
+        .experiment-section h2 {
+            color: #fff;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            font-weight: 600;
+            border-bottom: 1px solid #2a2f45;
+            padding-bottom: 12px;
+        }
+        .experiment-section h3 {
+            color: #aab;
+            margin: 20px 0 15px 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 30px;
+        }
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: #141824;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .metrics-table th, .metrics-table td {
+            padding: 14px 18px;
+            text-align: left;
+            border-bottom: 1px solid #2a2f45;
+        }
+        .metrics-table th {
+            background: #232838;
+            color: #8892a4;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .metrics-table tr:hover { background-color: #1f2438; }
+        .metric-value { font-weight: bold; color: #3F51B5; }
+        .metric-std { color: #8892a4; font-size: 0.9em; }
+        .best {
+            background-color: #1a3a1a !important;
+        }
+        .best .metric-value {
+            color: #4CAF50;
+        }
+        .tabs {
+            display: flex;
+            gap: 12px;
+            margin: 0 auto 30px;
+            max-width: 1600px;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: #141824;
+            border: 1px solid #2a2f45;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: #e0e0e0;
+            transition: all 0.3s;
+        }
+        .tab:hover {
+            background: #1f2438;
+            border-color: #3F51B5;
+        }
+        .tab.active {
+            background: #3F51B5;
+            color: white;
+            border-color: #3F51B5;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .footer {
+            text-align: center;
+            color: #8892a4;
+            margin-top: 30px;
+            padding: 20px;
+        }
+        .run-selector-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .run-selector-bar label {
+            color: #aab;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+        .run-selector-bar select {
+            background: #141824;
+            color: #e0e0e0;
+            border: 1px solid #2a2f45;
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .run-selector-bar select:focus {
+            outline: none;
+            border-color: #3F51B5;
+        }
+        .run-charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+        .run-chart-box {
+            background: #141824;
+            border-radius: 10px;
+            padding: 24px;
+            border: 1px solid #2a2f45;
+        }
+        .run-chart-box h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #aab;
+            margin-bottom: 16px;
+        }
+        .run-chart-box canvas { max-height: 280px; }
+        #run-gallery {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            margin-top: 24px;
+        }
+        .run-gallery-card {
+            background: #141824;
+            border-radius: 8px;
+            border: 1px solid #2a2f45;
+            padding: 20px;
+        }
+        .run-gallery-header {
+            background: #232838;
+            padding: 10px 14px;
+            font-weight: 600;
+            color: #fff;
+            font-size: 0.9rem;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .run-gallery-original {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .run-gallery-original img {
+            max-width: 280px;
+            border-radius: 6px;
+            border: 2px solid #8892a4;
+        }
+        .run-gallery-original .label {
+            font-size: 0.9rem; color: #fff;
+            margin-top: 8px; font-weight: 600; text-align: center;
+        }
+        .run-gallery-original .true-label {
+            font-size: 0.85rem; color: #FFD700;
+            margin-top: 4px; font-weight: 600; text-align: center;
+        }
+        .run-gallery-predictions {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+        }
+        .run-gallery-item { text-align: center; }
+        .run-gallery-item img {
+            width: 100%; border-radius: 6px;
+            border: 2px solid #2a2f45;
+        }
+        .run-gallery-item .label {
+            font-size: 0.75rem; color: #8892a4;
+            margin-top: 6px; font-weight: 600;
+        }
+        .run-gallery-item .prediction {
+            font-size: 0.7rem; margin-top: 4px;
+        }
+        .run-gallery-item .prediction.correct { color: #4CAF50; }
+        .run-gallery-item .prediction.incorrect { color: #f44336; }
+        #run-loading {
+            color: #8892a4; font-style: italic; padding: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Résultats Agrégés - 15 Datasets</h1>
+            <p>Analyse statistique des 3 expériences sur 15 datasets distincts</p>
+        </div>
+
+        <div class="info-box">
+            <h2>Informations</h2>
+            <p>SEEDS = [3, 11, 13, 25, 33, 35, 55, 201, 421, 610, 987, 2001, 2026, 2584, 4181]</p>
+            <p><strong>Nombre total d'exécutions :</strong> 45 (3 expériences × 15 datasets)</p>
+            <p><strong>Métriques agrégées :</strong> Moyenne ± Écart-type</p>
+        </div>
+
+        <div class="tabs">
+            <button type="button" class="tab active" onclick="showTab('exp1')">Expérience 1</button>
+            <button type="button" class="tab" onclick="showTab('exp2')">Expérience 2</button>
+            <button type="button" class="tab" onclick="showTab('exp3')">Expérience 3</button>
+        </div>
+
+        <div id="exp1-content" class="tab-content active">
+            <div class="experiment-section">
+                <h2>Expérience 1 : Comparaison des stratégies d'entraînement</h2>
+                <h3>Tableau récapitulatif</h3>
+                <div id="exp1-table"></div>
+            </div>
+        </div>
+
+        <div id="exp2-content" class="tab-content">
+            <div class="experiment-section">
+                <h2>Expérience 2 : Influence de la taille du dataset</h2>
+                <h3>Tableau récapitulatif</h3>
+                <div id="exp2-table"></div>
+            </div>
+        </div>
+
+        <div id="exp3-content" class="tab-content">
+            <div class="experiment-section">
+                <h2>Expérience 3 : Métriques détaillées</h2>
+                <h3>Tableau récapitulatif</h3>
+                <div id="exp3-table"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Généré automatiquement • 2026-03-19 18:36:54</p>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        function normalizeAccuracy(value) {
+            return value > 1 ? value : value * 100;
+        }
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(tabName + '-content').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Configuration Chart.js pour le thème sombre
+        Chart.defaults.color = '#8892a4';
+        Chart.defaults.borderColor = '#2a2f45';
+
+        const COLORS = [
+            '#2196F3', '#FF9800', '#FF5722', '#F44336', '#E91E63',
+            '#9C27B0', '#673AB7', '#3F51B5', '#4CAF50', '#8BC34A'
+        ];
+
+        function generateExp1() {
+            if (!window.EXP1_DATA) return;
+
+            const data = window.EXP1_DATA;
+            const models = Object.keys(data);
+
+            // Tableau
+            let bestModel = models[0];
+            let bestAcc = data[bestModel].final_test_acc_mean;
+            models.forEach(m => {
+                if (data[m].final_test_acc_mean > bestAcc) {
+                    bestAcc = data[m].final_test_acc_mean;
+                    bestModel = m;
+                }
+            });
+
+            let tableHTML = '<table class="metrics-table"><thead><tr><th>Modèle</th><th>Test Acc (%)</th><th>Train Acc (%)</th><th>Test Loss</th><th>Train Loss</th><th>Durée (s)</th><th>N Runs</th></tr></thead><tbody>';
+            models.forEach(m => {
+                const isBest = m === bestModel;
+                const testAcc = normalizeAccuracy(data[m].final_test_acc_mean);
+                const testAccStd = data[m].final_test_acc_std;
+                const trainAcc = normalizeAccuracy(data[m].history.train_acc_mean[data[m].history.train_acc_mean.length - 1]);
+                const trainAccStd = data[m].history.train_acc_std[data[m].history.train_acc_std.length - 1];
+                const testLoss = data[m].history.test_loss_mean[data[m].history.test_loss_mean.length - 1];
+                const testLossStd = data[m].history.test_loss_std[data[m].history.test_loss_std.length - 1];
+                const trainLoss = data[m].history.train_loss_mean[data[m].history.train_loss_mean.length - 1];
+                const trainLossStd = data[m].history.train_loss_std[data[m].history.train_loss_std.length - 1];
+                const dur = data[m].duration_mean;
+                const durStd = data[m].duration_std;
+
+                tableHTML += `<tr>
+                    <td>${m}</td>
+                    <td><span class="metric-value">${testAcc.toFixed(2)}</span> <span class="metric-std">± ${testAccStd.toFixed(2)}</span></td>
+                    <td><span class="metric-value">${trainAcc.toFixed(2)}</span> <span class="metric-std">± ${trainAccStd.toFixed(2)}</span></td>
+                    <td><span class="metric-value">${testLoss.toFixed(4)}</span> <span class="metric-std">± ${testLossStd.toFixed(4)}</span></td>
+                    <td><span class="metric-value">${trainLoss.toFixed(4)}</span> <span class="metric-std">± ${trainLossStd.toFixed(4)}</span></td>
+                    <td><span class="metric-value">${dur.toFixed(1)}</span> <span class="metric-std">± ${durStd.toFixed(1)}</span></td>
+                    <td>${data[m].n_runs}</td>
+                </tr>`;
+            });
+            tableHTML += '</tbody></table>';
+            document.getElementById('exp1-table').innerHTML = tableHTML;
+        }
+
+        function generateExp2() {
+            if (!window.EXP2_DATA) return;
+
+            const data = window.EXP2_DATA;
+
+            // Couleurs identitaires des modèles (alignées avec shared/config.STRATEGY_COLORS)
+            const MODEL_COLORS = {
+                'Normal':                  '#2196F3',
+                'Guided GradCAM (λ=0.1)':  '#CE93D8',
+                'Guided GradCAM (λ=0.3)':  '#9C27B0',
+            };
+            const WINNER_BG = '#1a3a1a';   // fond vert sombre
+            const WINNER_FG = '#4CAF50';   // texte vert vif
+
+            // Extraction des tailles disponibles
+            const sizesSet = new Set();
+            Object.keys(data).forEach(k => {
+                const m = k.match(/\((\d+) imgs\)/);
+                if (m) sizesSet.add(parseInt(m[1]));
+            });
+            const sizes = Array.from(sizesSet).sort((a, b) => b - a);
+
+            // Ordre canonique des modèles dans le tableau
+            const MODEL_ORDER = ['Normal', 'Guided GradCAM (λ=0.1)', 'Guided GradCAM (λ=0.3)'];
+            const labelOf = (base) => base.replace(/^Guided GradCAM \(λ=([^)]+)\)$/, 'Guided GradCAM λ=$1');
+
+            // Helpers de formatage des Δ
+            // Convention : + = Best Guided GradCAM meilleur que Normal
+            //   Acc  → Δ = Best − Normal (gain en pts)
+            //   Loss → Δ = Normal − Best (baisse de loss)
+            const fmtDelta = (v, decimals) => {
+                if (v == null) return '—';
+                const sign = v > 0 ? '+' : '';
+                const color = v > 0.005 ? '#4CAF50' : (v < -0.005 ? '#F44336' : '#aab');
+                return `<span style="color:${color};font-weight:700;">${sign}${v.toFixed(decimals)}</span>`;
+            };
+
+            // Construction du tableau : 2 lignes par taille (Normal + Best Guided GradCAM)
+            let tableHTML = '<table class="metrics-table"><thead><tr>';
+            tableHTML += '<th>Taille</th><th>Modèle</th>';
+            tableHTML += '<th>Test Acc</th><th>Δ</th>';
+            tableHTML += '<th>Test Loss</th><th>Δ</th>';
+            tableHTML += '<th>Train Acc</th><th>Δ</th>';
+            tableHTML += '<th>Train Loss</th><th>Δ</th>';
+            tableHTML += '</tr></thead><tbody>';
+
+            sizes.forEach(size => {
+                const sizeTag = `${size} imgs`;
+                const entries = MODEL_ORDER.map(base => {
+                    const key = `${base} (${sizeTag})`;
+                    return { base, key, present: !!data[key] };
+                }).filter(e => e.present);
+
+                if (entries.length === 0) return;
+
+                const normalEntry = entries.find(e => e.base === 'Normal');
+                if (!normalEntry) return;
+
+                // Sélection du meilleur Guided GradCAM selon la Test Acc
+                const ggcEntries = entries.filter(e => e.base !== 'Normal');
+                if (ggcEntries.length === 0) return;
+                let bestGgc = ggcEntries[0];
+                let bestGgcAcc = normalizeAccuracy(data[bestGgc.key].final_test_acc_mean);
+                ggcEntries.forEach(e => {
+                    const a = normalizeAccuracy(data[e.key].final_test_acc_mean);
+                    if (a > bestGgcAcc) { bestGgcAcc = a; bestGgc = e; }
+                });
+
+                // Extraction des valeurs (Normal + Best GGC)
+                const getMetrics = (entry) => {
+                    const d = data[entry.key];
+                    const lastIdx = d.history.test_acc_mean.length - 1;
+                    return {
+                        testAcc:    normalizeAccuracy(d.final_test_acc_mean),
+                        testAccS:   d.final_test_acc_std,
+                        trainAcc:   normalizeAccuracy(d.history.train_acc_mean[lastIdx]),
+                        trainAccS:  d.history.train_acc_std[lastIdx],
+                        testLoss:   d.history.test_loss_mean[lastIdx],
+                        testLossS:  d.history.test_loss_std[lastIdx],
+                        trainLoss:  d.history.train_loss_mean[lastIdx],
+                        trainLossS: d.history.train_loss_std[lastIdx],
+                    };
+                };
+                const n = getMetrics(normalEntry);
+                const b = getMetrics(bestGgc);
+
+                // Deltas : + = Best meilleur que Normal
+                const dTstA = b.testAcc  - n.testAcc;
+                const dTstL = n.testLoss - b.testLoss;
+                const dTrnA = b.trainAcc - n.trainAcc;
+                const dTrnL = n.trainLoss - b.trainLoss;
+
+                // Ligne 1 : Normal (avec rowspan sur la cellule taille)
+                tableHTML += `<tr>
+                    <td rowspan="2" style="border-top:2px solid #3a4060;"><strong>${size} imgs</strong></td>
+                    <td style="font-weight:600;">Normal</td>
+                    <td><span class="metric-value">${n.testAcc.toFixed(2)} %</span> <span class="metric-std">± ${n.testAccS.toFixed(2)}</span></td>
+                    <td>—</td>
+                    <td><span class="metric-value">${n.testLoss.toFixed(4)}</span> <span class="metric-std">± ${n.testLossS.toFixed(4)}</span></td>
+                    <td>—</td>
+                    <td><span class="metric-value">${n.trainAcc.toFixed(2)} %</span> <span class="metric-std">± ${n.trainAccS.toFixed(2)}</span></td>
+                    <td>—</td>
+                    <td><span class="metric-value">${n.trainLoss.toFixed(4)}</span> <span class="metric-std">± ${n.trainLossS.toFixed(4)}</span></td>
+                    <td>—</td>
+                </tr>`;
+
+                // Ligne 2 : Best Guided GradCAM + Δ vs Normal
+                tableHTML += `<tr>
+                    <td style="font-weight:600;">Best ${labelOf(bestGgc.base)}</td>
+                    <td><span class="metric-value">${b.testAcc.toFixed(2)} %</span> <span class="metric-std">± ${b.testAccS.toFixed(2)}</span></td>
+                    <td>${fmtDelta(dTstA, 2)}</td>
+                    <td><span class="metric-value">${b.testLoss.toFixed(4)}</span> <span class="metric-std">± ${b.testLossS.toFixed(4)}</span></td>
+                    <td>${fmtDelta(dTstL, 4)}</td>
+                    <td><span class="metric-value">${b.trainAcc.toFixed(2)} %</span> <span class="metric-std">± ${b.trainAccS.toFixed(2)}</span></td>
+                    <td>${fmtDelta(dTrnA, 2)}</td>
+                    <td><span class="metric-value">${b.trainLoss.toFixed(4)}</span> <span class="metric-std">± ${b.trainLossS.toFixed(4)}</span></td>
+                    <td>${fmtDelta(dTrnL, 4)}</td>
+                </tr>`;
+            });
+            tableHTML += '</tbody></table>';
+            document.getElementById('exp2-table').innerHTML = tableHTML;
+        }
+
+        function generateExp3() {
+            if (!window.EXP3_DATA) return;
+
+            const data = window.EXP3_DATA;
+            const models = Object.keys(data);
+
+            // Tableau - trouver le meilleur modèle
+            let bestModel = models[0];
+            let bestAcc = data[bestModel].detailed_metrics.accuracy_mean;
+            models.forEach(m => {
+                if (data[m].detailed_metrics.accuracy_mean > bestAcc) {
+                    bestAcc = data[m].detailed_metrics.accuracy_mean;
+                    bestModel = m;
+                }
+            });
+
+            // Ordre des colonnes aligné sur exp3.html :
+            // Modèle | Test Acc | Train Acc | Test Loss | Train Loss | Precision | Recall | F1 | IoU | Durée
+            let tableHTML = '<table class="metrics-table"><thead><tr>';
+            tableHTML += '<th>Modèle</th>';
+            tableHTML += '<th>Test Acc (%)</th><th>Train Acc (%)</th>';
+            tableHTML += '<th>Test Loss</th><th>Train Loss</th>';
+            tableHTML += '<th>Precision</th><th>Recall</th><th>F1-Score</th>';
+            tableHTML += '<th>IoU</th>';
+            tableHTML += '<th>Durée (s)</th>';
+            tableHTML += '</tr></thead><tbody>';
+
+            models.forEach(m => {
+                const metrics = data[m].detailed_metrics;
+                const hist = data[m].history;
+                const lastIdx = hist.test_acc_mean.length - 1;
+
+                const testAcc     = normalizeAccuracy(metrics.accuracy_mean);
+                const testAccStd  = normalizeAccuracy(metrics.accuracy_std);
+                const trainAcc    = normalizeAccuracy(hist.train_acc_mean[lastIdx]);
+                const trainAccStd = hist.train_acc_std[lastIdx];
+                const testLoss    = hist.test_loss_mean[lastIdx];
+                const testLossStd = hist.test_loss_std[lastIdx];
+                const trainLoss   = hist.train_loss_mean[lastIdx];
+                const trainLossStd= hist.train_loss_std[lastIdx];
+                const prec        = metrics.precision_mean;
+                const precStd     = metrics.precision_std;
+                const rec         = metrics.recall_mean;
+                const recStd      = metrics.recall_std;
+                const f1          = metrics.f1_mean;
+                const f1Std       = metrics.f1_std;
+                const dur         = data[m].duration_mean;
+                const durStd      = data[m].duration_std;
+
+                let iouStr = 'N/A';
+                if (metrics.iou_mean !== undefined) {
+                    iouStr = `<span class="metric-value">${metrics.iou_mean.toFixed(3)}</span> <span class="metric-std">± ${metrics.iou_std.toFixed(3)}</span>`;
+                }
+                const durStr = (dur != null)
+                    ? `<span class="metric-value">${dur.toFixed(1)}</span> <span class="metric-std">± ${(durStd ?? 0).toFixed(1)}</span>`
+                    : 'N/A';
+
+                const isBest = m === bestModel;
+
+                tableHTML += `<tr>
+                    <td>${m}</td>
+                    <td><span class="metric-value">${testAcc.toFixed(2)}</span> <span class="metric-std">± ${testAccStd.toFixed(2)}</span></td>
+                    <td><span class="metric-value">${trainAcc.toFixed(2)}</span> <span class="metric-std">± ${trainAccStd.toFixed(2)}</span></td>
+                    <td><span class="metric-value">${testLoss.toFixed(4)}</span> <span class="metric-std">± ${testLossStd.toFixed(4)}</span></td>
+                    <td><span class="metric-value">${trainLoss.toFixed(4)}</span> <span class="metric-std">± ${trainLossStd.toFixed(4)}</span></td>
+                    <td><span class="metric-value">${prec.toFixed(3)}</span> <span class="metric-std">± ${precStd.toFixed(3)}</span></td>
+                    <td><span class="metric-value">${rec.toFixed(3)}</span> <span class="metric-std">± ${recStd.toFixed(3)}</span></td>
+                    <td><span class="metric-value">${f1.toFixed(3)}</span> <span class="metric-std">± ${f1Std.toFixed(3)}</span></td>
+                    <td>${iouStr}</td>
+                    <td>${durStr}</td>
+                </tr>`;
+            });
+            tableHTML += '</tbody></table>';
+            document.getElementById('exp3-table').innerHTML = tableHTML;
+        }
+
+        window.addEventListener('load', () => {
+            try { generateExp1(); } catch(e) { console.error('EXP1:', e); }
+            try { generateExp2(); } catch(e) { console.error('EXP2:', e); }
+            try { generateExp3(); } catch(e) { console.error('EXP3:', e); }
+        });
+    </script>
+</body>
+</html>

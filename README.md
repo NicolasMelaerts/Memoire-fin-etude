@@ -93,7 +93,7 @@ Les datasets réels ne sont pas inclus dans ce dépôt en raison de leur taille.
 *   **Téléchargement :**
     *   Dataset complet (contenant les images et les segmentations) : [CUB2002011 (Kaggle)](https://www.kaggle.com/datasets/wenewone/cub2002011)
 *   **Installation :**
-    1. Décompressez l'archive téléchargée (nommée typiquement `archive-2.zip` ou similaire). Elle contient trois dossiers : `CUB_200_2011`, `cvpr2016_cub` et `segmentations`.
+    1. Décompressez l'archive téléchargée. Elle contient trois dossiers : `CUB_200_2011`, `cvpr2016_cub` et `segmentations`.
     2. Déplacez ces trois dossiers dans le répertoire `real_datasets/oiseaux/`.
 
     La structure finale doit être la suivante :
@@ -110,7 +110,7 @@ Les datasets réels ne sont pas inclus dans ce dépôt en raison de leur taille.
 *   **Téléchargement :**
     *   [A Large Scale Fish Dataset (Kaggle)](https://www.kaggle.com/datasets/crowww/a-large-scale-fish-dataset)
 *   **Installation :**
-    1. Décompressez l'archive téléchargée (nommée typiquement `archive_3.zip` ou similaire).
+    1. Décompressez l'archive téléchargée.
     2. Ouvrez le dossier extrait, puis entrez dans le sous-dossier `Fish_Dataset`. Celui-ci contient un autre sous-dossier également nommé `Fish_Dataset`.
     3. Copiez ce dernier dossier `Fish_Dataset` dans le répertoire `real_datasets/poissons/` et renommez-le en `fish-dataset` (avec un tiret et en minuscules).
 

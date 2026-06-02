@@ -14,6 +14,15 @@ Ce dépôt contient le code source associé au mémoire de fin d'études décrit
 
 ---
 
+## 🚀 Démarrage
+
+Pour copier le projet en local et vous y déplacer :
+
+```bash
+git clone https://github.com/NicolasMelaerts/Memoire-fin-etude.git
+cd Memoire-fin-etude
+```
+
 ## 📊 Visualisation des Résultats
 
 Pour ouvrir directement dans votre navigateur par défaut toutes les visualisations HTML interactives des expériences déjà exécutées et leurs résultats associés, exécutez la commande suivante à la racine du dépôt :

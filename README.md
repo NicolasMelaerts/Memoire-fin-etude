@@ -43,7 +43,15 @@ Pour générer le dataset synthétique principal (géométries cercle/triangle) 
 python3 dataset_creator/dataset_generator.py
 ```
 
-### 2. Lancement des expériences 1, 2 et 3 (avec `--clean` et `dataset_seed13`)
+### 2. Expérience 0 (grid search λ multi-seed)
+
+Cette expérience effectue une recherche par grille sur le coefficient λ de la supervision GradCAM, agrégée sur plusieurs datasets (multi-seed) afin de réduire la variance et de justifier le choix de λ utilisé dans les expériences suivantes :
+
+```bash
+python3 experiences/run_exp0.py
+```
+
+### 3. Lancement des expériences 1, 2 et 3 (avec `--clean` et `dataset_seed13`)
 
 Ces expériences comparent les performances et la robustesse des modèles entraînés sur le dataset d'expérience `dataset_seed13` (le paramètre `--dataset` accepte le nom du dossier présent dans `experiences/datasets/`) :
 
@@ -58,7 +66,7 @@ python3 experiences/run_exp2.py --clean --dataset dataset_seed13
 python3 experiences/run_exp3.py --clean --dataset dataset_seed13
 ```
 
-### 3. Expérience 4
+### 4. Expérience 4
 
 Cette expérience évalue la robustesse du modèle face à un biais statistique inversé en phase de test (la flèche prédit la classe positive en entraînement mais la classe négative en test) :
 
@@ -66,12 +74,12 @@ Cette expérience évalue la robustesse du modèle face à un biais statistique 
 python3 experiences/run_exp4.py
 ```
 
-### 4. Expérience Multi-Datasets
+### 5. Expérience Multi-Datasets
 
 Pour lancer l'évaluation et l'agrégation des résultats sur l'ensemble des 15 datasets synthétiques générés avec différentes graines (seeds) :
 
 ```bash
-python3 experiences/run_multidataset.py --clean
+python3 experiences/run_multidataset.py
 ```
 
 ---

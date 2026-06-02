@@ -63,7 +63,7 @@ python3 experiences/run_exp3.py --clean --dataset dataset_seed13
 Cette expérience évalue la robustesse du modèle face à un biais statistique inversé en phase de test (la flèche prédit la classe positive en entraînement mais la classe négative en test) :
 
 ```bash
-python3 experiences/run_exp4.py --clean
+python3 experiences/run_exp4.py
 ```
 
 ### 4. Expérience Multi-Datasets
